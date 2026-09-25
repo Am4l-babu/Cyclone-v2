@@ -13,6 +13,7 @@
 
 **A cursor spins. A target hides in the ring. You get one button and 60 seconds.**
 
+[🕹 Simulator](#-play-it-in-your-browser) ·
 [🎮 How to play](#-how-to-play) ·
 [📱 Web panel](#-the-web-control-panel) ·
 [🔌 Wiring](#-wiring) ·
@@ -21,6 +22,37 @@
 [🛠 Troubleshooting](#-troubleshooting)
 
 </div>
+
+---
+
+## 🕹 Play it in your browser
+
+<div align="center">
+
+<a href="https://htmlpreview.github.io/?https://github.com/Am4l-babu/Cyclone-v2/blob/main/docs/simulator.html">
+  <img src="docs/simulator-preview.png" alt="Cyclone Target Lock browser simulator" width="720">
+</a>
+
+### [▶️ &nbsp;PLAY THE SIMULATOR](https://htmlpreview.github.io/?https://github.com/Am4l-babu/Cyclone-v2/blob/main/docs/simulator.html)
+
+<sub>Space / Enter or tap the big button · sound on by default · or open <a href="docs/simulator.html"><code>docs/simulator.html</code></a> locally, no install needed</sub>
+
+</div>
+
+Try the game **before you build a single wire**. The simulator is a port of the firmware, so it uses the same rules, timings, LED effects, OLED screens and buzzer sounds:
+
+| | |
+|---|---|
+| 🔴 **Arcade button** | click, tap or press <kbd>Space</kbd> / <kbd>Enter</kbd> to play, exactly like the real button |
+| 💡 **24-LED ring** | glowing LEDs with your colours, comet tail, pulsing target and every hit / miss / win effect |
+| 📟 **OLED emulation** | pixel-accurate 128×64 screen using the classic 5×7 font: score, time bar, best, result |
+| 🔊 **Buzzer** | all 11 sounds through Web Audio, plus a mute button |
+| 🎛 **Full control panel** | the same Game / Look / Effects / Sound / Presets settings as the real web page, with **▶ Test** buttons |
+| 🤖 **Autopilot** | a bot with an adjustable skill slider plays for you, great for previewing a setup |
+| 📜 **Serial monitor** | live log of starts, hits, misses and setting changes |
+| 💾 **Presets and export** | 7 built-in presets, 3 save slots and JSON export / import, kept in your browser |
+
+Found a setup you love? The **Export settings** button saves a JSON file you can import on the real device's **System** tab.
 
 ---
 
@@ -45,6 +77,7 @@ Version 2 adds a full **WiFi control panel** on your phone: change the round tim
 | 💾 **Presets** | 7 built-in looks + 3 save slots stored on the device |
 | 🧠 **Smart extras** | hit window, time bonus / penalty, win score, level-up, countdown ticks, auto-save, export / import |
 | 📟 **OLED scoreboard** | score, best, level, time bar, result screen |
+| 🕹 **Browser simulator** | play the whole game and tweak every setting without any hardware |
 
 ---
 
@@ -467,7 +500,10 @@ cyclone_game_2/
 │   ├── ButtonTest/  RgbLedTest/  OledTest/  BuzzerTest/
 ├── tools/
 │   └── sync_arduino.py                copies src/ → arduino/CycloneTargetLock/
-├── docs/banner.svg                    animated README banner
+├── docs/
+│   ├── simulator.html                 🕹 playable browser version of the game
+│   ├── simulator-preview.png
+│   └── banner.svg                     animated README banner
 └── .vscode/extensions.json            recommends the PlatformIO extension
 ```
 

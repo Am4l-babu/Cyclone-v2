@@ -1,0 +1,577 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cyclone Target Lock Simulator</title>
+<meta name="description" content="Play Cyclone Target Lock in your browser: same rules, timings, LED effects, OLED screens and buzzer sounds as the ESP8266 firmware.">
+<style>
+:root{
+  --bg:#080b1c;--bg2:#141238;--card:#101534;--card2:#1a2050;--line:#2a3266;--txt:#e8ecff;--dim:#8d97c8;
+  --cy:#00e5ff;--pk:#ff3d9a;--gr:#20e070;--rd:#ff4560;--yl:#ffc93c;--vi:#8a3dff;
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{overflow-x:hidden}
+body{margin:0;min-height:100vh;color:var(--txt);font-family:"Segoe UI",system-ui,-apple-system,Helvetica,Arial,sans-serif;
+  background:radial-gradient(1100px 650px at 15% -10%,#25205e 0,transparent 60%),radial-gradient(900px 600px at 100% 10%,#3a0f4d55 0,transparent 60%),var(--bg);
+  background-attachment:fixed;padding:22px 14px 50px}
+header{text-align:center;margin-bottom:18px}
+h1{margin:0;font-size:clamp(26px,6vw,40px);font-weight:900;letter-spacing:.06em}
+h1 .a{color:var(--cy);text-shadow:0 0 18px #00e5ff66}
+h1 .b{background:linear-gradient(90deg,var(--pk),var(--vi));-webkit-background-clip:text;background-clip:text;color:transparent}
+.sub{color:var(--dim);margin:6px auto 0;max-width:60ch;line-height:1.45;font-size:15px}
+.layout{max-width:1080px;margin:0 auto;display:grid;grid-template-columns:minmax(300px,430px) 1fr;gap:18px;align-items:start}
+@media(max-width:860px){.layout{grid-template-columns:minmax(0,1fr)}}
+.layout>*{min-width:0}
+
+/* ---------- cabinet ---------- */
+.cab{background:linear-gradient(160deg,#1b1f4d,#0d1030 60%);border:1px solid var(--line);border-radius:28px;padding:16px;
+  box-shadow:0 18px 50px #0009,inset 0 1px 0 #ffffff14;position:sticky;top:12px}
+@media(max-width:860px){.cab{position:static}}
+.bezel{background:#000;border:3px solid #232a5c;border-radius:12px;padding:6px;position:relative;box-shadow:inset 0 0 18px #000}
+.bezel:after{content:"";position:absolute;inset:6px;pointer-events:none;border-radius:5px;
+  background:repeating-linear-gradient(to bottom,transparent 0 3px,#0000002e 3px 4px)}
+#oled{display:block;width:100%;aspect-ratio:2/1;image-rendering:pixelated;background:#02060c}
+.tbar{height:5px;border-radius:4px;background:#1b2150;margin:10px 2px 0;overflow:hidden}
+.tbar i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--cy),var(--pk));transition:width .2s linear}
+
+.ringWrap{position:relative;width:100%;aspect-ratio:1;margin-top:14px;border-radius:50%;
+  background:radial-gradient(circle,#0c1030 0 46%,#060820 47% 100%);box-shadow:inset 0 0 40px #000,0 0 0 2px #262d66}
+.dot{position:absolute;width:7%;aspect-ratio:1;border-radius:50%;transform:translate(-50%,-50%);background:#171c44;
+  border:1px solid #2a3266}
+.num{position:absolute;transform:translate(-50%,-50%);font:600 9px/1 Consolas,monospace;color:#3b4585;pointer-events:none}
+.arcade{position:absolute;left:50%;top:50%;width:40%;aspect-ratio:1;transform:translate(-50%,-50%);border-radius:50%;border:0;cursor:pointer;
+  background:radial-gradient(circle at 35% 30%,#ff8a97,#ff2440 45%,#a0001a 100%);
+  box-shadow:0 8px 0 #6a0012,0 14px 24px #000a,inset 0 -6px 12px #0006,inset 0 6px 10px #ffffff40;
+  color:#fff;font:900 18px/1 "Segoe UI",sans-serif;letter-spacing:.15em;text-shadow:0 2px 3px #0008;
+  transition:transform .05s,box-shadow .05s;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
+.arcade:active,.arcade.down{transform:translate(-50%,calc(-50% + 6px));box-shadow:0 2px 0 #6a0012,0 5px 12px #000a,inset 0 -6px 12px #0006,inset 0 6px 10px #ffffff40}
+.arcade small{display:block;font-size:10px;letter-spacing:.1em;opacity:.8;margin-top:4px;font-weight:600}
+.arcade:focus-visible{outline:3px solid var(--cy);outline-offset:4px}
+
+.chips{display:flex;gap:8px;align-items:center;justify-content:space-between;margin:14px 2px 0;flex-wrap:wrap}
+.chip{font-size:11px;letter-spacing:1.2px;text-transform:uppercase;padding:4px 10px;border-radius:99px;background:var(--card2);color:var(--cy);border:1px solid var(--line)}
+.chip.playing{background:var(--gr);color:#03150a;border-color:var(--gr)}
+.chip.fx,.chip.ending{background:var(--yl);color:#1a1200;border-color:var(--yl)}
+.chip.starting,.chip.test{background:var(--vi);color:#fff;border-color:var(--vi)}
+.buzzer{display:flex;align-items:center;gap:6px;color:var(--dim);font-size:12px}
+.buzzer .wave{display:flex;gap:2px;align-items:flex-end;height:16px}
+.buzzer .wave i{width:3px;background:var(--dim);border-radius:2px;height:4px}
+.buzzer.on .wave i{background:var(--yl);animation:eq .35s ease-in-out infinite alternate}
+.buzzer.on .wave i:nth-child(2){animation-delay:.08s}.buzzer.on .wave i:nth-child(3){animation-delay:.16s}.buzzer.on .wave i:nth-child(4){animation-delay:.24s}
+@keyframes eq{to{height:16px}}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:12px}
+.kv{background:#0c1132;border:1px solid #1f2758;border-radius:12px;padding:7px 4px;text-align:center}
+.kv b{display:block;font-size:20px;font-variant-numeric:tabular-nums}
+.kv span{font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:1px}
+.btns{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
+button.b{font:inherit;font-weight:700;border:0;border-radius:12px;padding:11px 14px;color:#fff;background:#2d3775;cursor:pointer;flex:1;min-width:88px}
+button.b:active{transform:scale(.97)}
+button.go{background:linear-gradient(#17b45a,#0e8a42)}button.no{background:linear-gradient(#d23347,#a51e30)}
+button.ghost{background:transparent;border:1px solid var(--line);color:var(--dim)}
+button.on{background:linear-gradient(90deg,#1c6cff,#8a3dff);color:#fff;border-color:transparent}
+.hint{color:var(--dim);font-size:12px;text-align:center;margin-top:10px;line-height:1.6}
+kbd{background:#0c1132;border:1px solid var(--line);border-bottom-width:2px;border-radius:5px;padding:1px 6px;font:600 11px Consolas,monospace;color:var(--txt)}
+.bot{display:none;align-items:center;gap:10px;margin-top:10px;font-size:13px;color:var(--dim)}
+.bot.show{display:flex}.bot input{flex:1;accent-color:var(--pk)}
+
+/* ---------- panel ---------- */
+.panel{background:var(--card);border:1px solid var(--line);border-radius:24px;padding:14px}
+nav{display:flex;gap:6px;overflow-x:auto;padding-bottom:8px}
+nav button{flex:none;font:inherit;font-weight:600;background:var(--card2);border:1px solid var(--line);color:var(--dim);border-radius:11px;padding:9px 14px;cursor:pointer}
+nav button.on{background:linear-gradient(90deg,#1c6cff,#8a3dff);color:#fff;border-color:transparent}
+.tab{display:none}.tab.on{display:block}
+.h{margin:16px 0 4px;font-size:12px;letter-spacing:1.5px;text-transform:uppercase;color:var(--cy);display:flex;justify-content:space-between;align-items:center}
+.row{display:grid;grid-template-columns:1fr auto;gap:2px 10px;align-items:center;padding:7px 0;border-bottom:1px solid #1c2350}
+.row label{font-size:14px}.row output{font-weight:700;color:var(--cy);font-variant-numeric:tabular-nums;min-width:56px;text-align:right}
+.row input[type=range]{grid-column:1/-1;width:100%;accent-color:var(--pk)}
+.row select{background:var(--card2);color:var(--txt);border:1px solid var(--line);border-radius:9px;padding:8px}
+.row input[type=color]{width:56px;height:34px;border:0;background:none;padding:0}
+.sw{position:relative;width:46px;height:26px}.sw input{opacity:0;width:0;height:0}
+.sw span{position:absolute;inset:0;background:var(--card2);border:1px solid var(--line);border-radius:99px;transition:.2s}
+.sw span:before{content:"";position:absolute;width:18px;height:18px;left:3px;top:3px;background:#fff;border-radius:50%;transition:.2s}
+.sw input:checked+span{background:var(--gr)}.sw input:checked+span:before{transform:translateX(20px)}
+.note{color:var(--dim);font-size:12px;padding:6px 0}
+button.sm{font:inherit;font-weight:600;font-size:13px;border:0;border-radius:9px;padding:6px 11px;color:#fff;background:#2d3775;cursor:pointer}
+button.sm.ghost{background:transparent;border:1px solid var(--line);color:var(--dim)}
+.pgrid{display:grid;gap:8px}
+.pc{background:var(--card2);border:1px solid var(--line);border-radius:12px;padding:10px;display:flex;gap:10px;align-items:center;justify-content:space-between}
+.pc small{display:block;color:var(--dim);margin-top:2px}
+.pc .w{display:flex;gap:6px}
+
+.console{margin-top:14px;background:#04061a;border:1px solid var(--line);border-radius:14px;padding:10px 12px;font:12px/1.55 Consolas,"Courier New",monospace;height:150px;overflow:auto;color:#9fe8b6}
+.console .t{color:#5561a8}.console .e{color:var(--yl)}.console .x{color:#ff8b9b}.console .c{color:var(--cy)}
+.ct{font-size:12px;letter-spacing:1.5px;text-transform:uppercase;color:var(--dim);margin:14px 4px 6px;display:flex;justify-content:space-between}
+#toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%) translateY(90px);background:#0e1330;border:1px solid var(--cy);padding:10px 18px;border-radius:99px;transition:.3s;z-index:30;font-size:14px}
+#toast.show{transform:translateX(-50%) translateY(0)}
+footer{text-align:center;color:var(--dim);font-size:12px;margin-top:26px;line-height:1.7}
+footer a{color:var(--cy);text-decoration:none}
+</style>
+</head>
+<body>
+<header>
+  <h1><span class="a">CYCLONE</span> <span class="b">TARGET LOCK</span></h1>
+  <p class="sub">The real firmware rules, timings, LED effects, OLED screens and buzzer sounds, running in your browser. Press the big button when the green cursor hits the red target.</p>
+</header>
+
+<main class="layout">
+  <section class="cab">
+    <div class="bezel"><canvas id="oled" width="128" height="64"></canvas></div>
+    <div class="tbar"><i id="tbar"></i></div>
+
+    <div class="ringWrap" id="ring">
+      <button class="arcade" id="btn" aria-label="Game button">PRESS<small>SPACE</small></button>
+    </div>
+
+    <div class="chips">
+      <span class="chip" id="chipMode">idle</span>
+      <span class="buzzer" id="buzz"><span class="wave"><i></i><i></i><i></i><i></i></span><span id="buzzTxt">buzzer</span></span>
+      <span class="chip" id="chipSpeed">80 ms</span>
+    </div>
+
+    <div class="stats">
+      <div class="kv"><b id="sScore">0</b><span>Score</span></div>
+      <div class="kv"><b id="sTime">60</b><span>Time</span></div>
+      <div class="kv"><b id="sLevel">1</b><span>Level</span></div>
+      <div class="kv"><b id="sBest">0</b><span>Best</span></div>
+    </div>
+
+    <div class="btns">
+      <button class="b go" id="bStart">&#9654; START</button>
+      <button class="b no" id="bStop">&#9632; STOP</button>
+      <button class="b ghost" id="bBot">&#129302; Autopilot</button>
+      <button class="b ghost on" id="bSnd">&#128266; Sound</button>
+    </div>
+    <div class="bot" id="botRow"><span>Bot skill</span><input type="range" id="botSkill" min="20" max="100" value="85"><b id="botVal">85%</b></div>
+    <div class="hint"><kbd>Space</kbd> / <kbd>Enter</kbd> or tap the big button &middot; hold nothing, timing is everything</div>
+  </section>
+
+  <section>
+    <div class="panel">
+      <nav id="nav"></nav>
+      <div id="tabs"></div>
+    </div>
+    <div class="ct"><span>Serial monitor</span><button class="sm ghost" id="clr">clear</button></div>
+    <div class="console" id="log"></div>
+  </section>
+</main>
+
+<footer>
+  Every rule, timing, effect and sound here is a port of <a href="https://github.com/Am4l-babu/Cyclone-v2/blob/main/src/main.cpp" target="_blank" rel="noopener">src/main.cpp</a>, so a setup you like here works the same on the device.<br>
+  Made by <a href="https://github.com/Am4l-babu" target="_blank" rel="noopener">Am4l-babu</a> &middot; Cyclone Target Lock v2
+</footer>
+<div id="toast"></div>
+
+<script>
+"use strict";
+/* =====================================================================
+   CYCLONE TARGET LOCK - browser simulator
+   A line-by-line port of the ESP8266 firmware (src/*.cpp) so the game
+   plays and feels the same. Time is measured in ms like millis().
+   ===================================================================== */
+const $=s=>document.querySelector(s);
+const MAX_LEDS=24;
+const now=()=>performance.now();
+const rnd=n=>Math.floor(Math.random()*n);
+const clamp=(v,a,b)=>v<a?a:v>b?b:v;
+
+/* ---------------- settings (settings.cpp) ---------------- */
+const STYLE_NAMES=["Blink","Ripple","Sparkle","Rainbow","Spin","Fill up"];
+const IDLE_NAMES=["Off","Chase","Rainbow","Breathe","Sparkle"];
+const DIR_NAMES=["Clockwise","Counter-clockwise","Flip on every hit","Random on every hit"];
+const SOUND_NAMES=["Off","Beep","Chirp up","Chirp down","Coin","Low buzz","Fanfare","Sad trombone","Siren","Power up","Laser","Tick"];
+const PRESETS=[
+ ["Classic","The original look: green cursor, red target, 60 s round."],
+ ["Neon Night","Cyan comet, pulsing magenta target, ripple effects."],
+ ["Arcade","Yellow cursor, coin sounds, fill-up hit effect."],
+ ["Easy","Slower cursor, wider hit window, no penalty, 90 s."],
+ ["Hard","Fast cursor, misses cost points and time, 45 s."],
+ ["Party","Rainbow idle, sparkles, random direction, big finale."],
+ ["Stealth","Dim and silent. Perfect for late-night play."]];
+const LIM={roundSeconds:[10,600],speedDelay:[10,1000],minDelay:[5,500],winScore:[0,999],speedStep:[0,20],pointsPerLevel:[1,50],
+ hitPoints:[1,10],missPenalty:[0,10],hitWindow:[0,3],timeBonus:[0,10],timePenalty:[0,10],dirMode:[0,3],ledCount:[4,24],brightness:[1,255],
+ tailLen:[0,8],targetPulse:[0,1],idleMode:[0,4],idleSpeed:[10,250],startSweep:[0,100],
+ hitStyle:[0,5],hitBlinks:[0,10],hitMs:[20,500],missStyle:[0,5],missBlinks:[0,10],missMs:[20,500],
+ overStyle:[0,5],overBlinks:[0,20],overMs:[20,1000],winStyle:[0,5],winBlinks:[0,20],winMs:[20,1000],
+ buzzer:[0,1],sndStart:[0,11],sndHit:[0,11],sndLevel:[0,11],sndMiss:[0,11],sndOver:[0,11],sndWin:[0,11],sndTick:[0,11],tickSec:[0,30],stepClick:[0,1]};
+const COLORS=["cTarget","cBg","cCursor","cHit","cMiss","cOver","cWin","cStart","cIdle"];
+function defaults(){return{
+ roundSeconds:60,speedDelay:80,minDelay:20,winScore:0,speedStep:2,pointsPerLevel:5,hitPoints:1,missPenalty:1,hitWindow:0,timeBonus:0,timePenalty:0,
+ dirMode:0,ledCount:24,brightness:100,
+ cTarget:0xFF0000,cBg:0x000014,cCursor:0x00FF00,cHit:0x00FF00,cMiss:0xFF0000,cOver:0xFF0000,cWin:0xFFD700,cStart:0x0000FF,cIdle:0x00AFFF,
+ tailLen:0,targetPulse:0,idleMode:1,idleSpeed:70,startSweep:25,
+ hitStyle:0,hitBlinks:1,hitMs:40,missStyle:0,missBlinks:1,missMs:60,overStyle:0,overBlinks:3,overMs:150,winStyle:3,winBlinks:3,winMs:250,
+ buzzer:1,sndStart:9,sndHit:2,sndLevel:4,sndMiss:5,sndOver:7,sndWin:6,sndTick:11,tickSec:5,stepClick:0}}
+let cfg=defaults();
+function clampCfg(){for(const k in LIM)cfg[k]=clamp(cfg[k]|0,LIM[k][0],LIM[k][1]);for(const k of COLORS)cfg[k]=clamp(cfg[k]|0,0,0xFFFFFF)}
+function applyPreset(id){
+ const keep=cfg.ledCount;cfg=defaults();cfg.ledCount=keep;
+ const P={
+ 1:{cTarget:0xFF00C8,cBg:0x0A001E,cCursor:0x00FFFF,cHit:0x00FFFF,cMiss:0xFF0050,cOver:0xFF0050,cWin:0xFF00C8,cIdle:0x00FFFF,tailLen:4,targetPulse:1,hitStyle:1,hitBlinks:1,hitMs:120,overStyle:4,overBlinks:3,overMs:250,winStyle:1,winBlinks:4,winMs:200,sndHit:10},
+ 2:{cCursor:0xFFC800,cTarget:0xFF2020,cBg:0x100800,cHit:0xFFC800,cIdle:0xFFC800,tailLen:2,hitStyle:5,hitBlinks:1,hitMs:70,sndHit:4,sndLevel:9},
+ 3:{speedDelay:140,minDelay:60,speedStep:1,hitWindow:1,missPenalty:0,roundSeconds:90,timeBonus:1,tailLen:3,brightness:130},
+ 4:{speedDelay:55,minDelay:12,speedStep:3,hitWindow:0,missPenalty:2,timePenalty:2,roundSeconds:45,pointsPerLevel:3,dirMode:2,tickSec:10},
+ 5:{idleMode:2,cBg:0,tailLen:5,targetPulse:1,dirMode:3,brightness:160,hitStyle:2,hitBlinks:2,hitMs:60,overStyle:1,overBlinks:4,overMs:200,winStyle:3,winBlinks:8,winMs:200},
+ 6:{brightness:30,buzzer:0,idleMode:0,cBg:0,cCursor:0x00A000,cTarget:0xA00000,hitBlinks:0,missBlinks:0}}[id];
+ if(P)Object.assign(cfg,P);clampCfg()}
+const hex6=n=>"#"+(n>>>0).toString(16).padStart(6,"0");
+const unhex=s=>parseInt(String(s).replace("#",""),16)||0;
+
+/* ---------------- persistence (browser only) ---------------- */
+function store(k,v){try{localStorage.setItem("cyc_"+k,JSON.stringify(v))}catch(e){}}
+function load(k,d){try{const v=localStorage.getItem("cyc_"+k);return v?JSON.parse(v):d}catch(e){return d}}
+
+/* ---------------- LED helpers (FastLED subset) ---------------- */
+const leds=Array.from({length:MAX_LEDS},()=>[0,0,0]);
+const rgb=c=>[(c>>16)&255,(c>>8)&255,c&255];
+const BLACK=[0,0,0];
+function set(i,c){leds[i][0]=c[0];leds[i][1]=c[1];leds[i][2]=c[2]}
+function fillSolid(c,n){for(let i=0;i<n;i++)set(i,c)}
+const scale8=(v,s)=>(v*(s+1))>>8;
+const nscale=(c,s)=>[scale8(c[0],s),scale8(c[1],s),scale8(c[2],s)];
+const blend=(a,b,t)=>[a[0]+(((b[0]-a[0])*t)>>8),a[1]+(((b[1]-a[1])*t)>>8),a[2]+(((b[2]-a[2])*t)>>8)];
+function hsv(h,s,v){h=(h%256)/256*6;const i=Math.floor(h),f=h-i,p=v*(1-s),q=v*(1-f*s),t=v*(1-(1-f)*s);
+ const m=[[v,t,p],[q,v,p],[p,v,t],[p,q,v],[t,p,v],[v,p,q]][i%6];return[m[0]|0,m[1]|0,m[2]|0]}
+function fillRainbow(n,hue,delta){for(let i=0;i<n;i++)set(i,hsv(hue+i*delta,1,255))}
+const beatsin8=(bpm,lo,hi)=>lo+(hi-lo)*(Math.sin(2*Math.PI*bpm*now()/60000-Math.PI/2)+1)/2;
+function fadeToBlack(n,by){for(let i=0;i<n;i++)set(i,nscale(leds[i],255-by))}
+
+/* ---------------- effects (effects.cpp) ---------------- */
+function fxFrame(style,color,elapsed,halfMs,center,n){
+ const period=2*halfMs,inCycle=elapsed%period,phase=Math.floor(inCycle*255/period);
+ fillSolid(BLACK,MAX_LEDS);
+ switch(style){
+  case 0:if(inCycle<halfMs)fillSolid(color,n);break;
+  case 1:{const radius=Math.floor(phase*(Math.floor(n/2)+2)/255);
+   for(let i=0;i<n;i++){let d=Math.abs(i-center);if(d>n-d)d=n-d;if(d<=radius&&d>=radius-1)set(i,color)}break}
+  case 2:for(let k=0;k<Math.floor(n/3)+1;k++)set(rnd(n),nscale(color,60+rnd(195)));break;
+  case 3:fillRainbow(n,phase,Math.floor(256/n));break;
+  case 4:{const head=Math.floor(phase*n/256);for(let t=0;t<6&&t<n;t++)set((head-t+n)%n,nscale(color,255-t*40));break}
+  case 5:{const count=Math.floor(phase*n/255)+1;for(let i=0;i<count&&i<n;i++)set((center+i)%n,color);break}
+ }}
+function idleFrame(mode,color,stepMs,n){
+ const t=now();
+ switch(mode){
+  case 1:{fillSolid(BLACK,MAX_LEDS);const head=Math.floor(t/stepMs)%n;for(let k=0;k<5&&k<n;k++)set((head-k+n)%n,nscale(color,255-k*50));break}
+  case 2:fillRainbow(n,Math.floor(t/20)&255,Math.floor(256/n));break;
+  case 3:fillSolid(nscale(color,Math.floor(beatsin8(12,10,255))),n);break;
+  case 4:fadeToBlack(n,40);if(Math.random()*256<90)set(rnd(n),color);break;
+  default:fillSolid(BLACK,MAX_LEDS)}}
+function sweepFrame(color,elapsed,perMs,n){
+ fillSolid(BLACK,MAX_LEDS);if(!perMs)return;
+ const c=Math.floor(elapsed/perMs);for(let i=0;i<c&&i<n;i++)set(i,color)}
+
+/* ---------------- buzzer (sounds.cpp + Web Audio) ---------------- */
+const N={Beep:[[1200,80]],Cu:[[800,40],[1100,40],[1500,50]],Cd:[[1400,45],[1000,45],[650,60]],Coin:[[988,70],[1319,220]],
+ Buzz:[[160,120],[0,30],[160,120]],Fan:[[523,110],[0,25],[523,110],[0,25],[523,110],[0,25],[659,180],[784,140],[1047,450]],
+ Sad:[[392,250],[370,250],[349,250],[330,600]],Siren:[[900,150],[1200,150],[900,150],[1200,150],[900,150],[1200,150]],
+ Pow:[[523,60],[659,60],[784,60],[1047,60],[1319,60],[1568,160]],Laser:[[2400,15],[2000,15],[1600,15],[1300,15],[1000,15],[800,15],[600,15],[450,20]],Tick:[[2200,25]]};
+const SOUNDS=[null,N.Beep,N.Cu,N.Cd,N.Coin,N.Buzz,N.Fan,N.Sad,N.Siren,N.Pow,N.Laser,N.Tick];
+let audio=null,osc=null,gain=null,soundOn=true,seq=null,seqIdx=0,seqActive=false,nextNoteAt=0,toneUntil=0;
+function audioInit(){
+ if(audio)return;try{audio=new (window.AudioContext||window.webkitAudioContext)();osc=audio.createOscillator();osc.type="square";
+  gain=audio.createGain();gain.gain.value=0;osc.connect(gain);gain.connect(audio.destination);osc.start()}catch(e){audio=null}}
+function tone(f){if(!audio||!soundOn||!f){if(gain)gain.gain.setTargetAtTime(0,audio.currentTime,.004);return}
+ if(audio.state==="suspended")audio.resume();osc.frequency.setValueAtTime(f,audio.currentTime);gain.gain.setTargetAtTime(.045,audio.currentTime,.004)}
+function noTone(){if(gain)gain.gain.setTargetAtTime(0,audio.currentTime,.004)}
+function soundPlay(id,force){if(!force&&!cfg.buzzer)return;if(id===0||id>=SOUNDS.length)return;seq=SOUNDS[id];seqIdx=0;seqActive=true;nextNoteAt=now()}
+function soundStop(){seqActive=false;noTone()}
+function soundLoop(){
+ if(toneUntil&&now()>=toneUntil){toneUntil=0;noTone()}
+ if(!seqActive)return;if(now()<nextNoteAt)return;
+ if(seqIdx>=seq.length){soundStop();return}
+ const n=seq[seqIdx++];if(n[0])tone(n[0]);else noTone();nextNoteAt=now()+n[1]}
+function clickTone(f,ms){tone(f);toneUntil=now()+ms}
+
+/* ---------------- OLED 128x64 (Adafruit_SSD1306 look-alike) ---------------- */
+const oc=$("#oled"),octx=oc.getContext("2d"),img=octx.createImageData(128,64),buf=new Uint8Array(128*64);
+/* Classic 5x7 font (same glyphs as Adafruit GFX): 5 column bytes per char, bit0 = top row. ASCII 32..126 */
+const FONT=[0,0,0,0,0,0,0,95,0,0,0,7,0,7,0,20,127,20,127,20,36,42,127,42,18,35,19,8,100,98,54,73,86,32,80,0,8,7,3,0,0,28,34,65,0,0,65,34,28,0,42,28,127,28,42,8,8,62,8,8,0,128,112,48,0,8,8,8,8,8,0,0,96,96,0,32,16,8,4,2,
+62,81,73,69,62,0,66,127,64,0,114,73,73,73,70,33,65,73,77,51,24,20,18,127,16,39,69,69,69,57,60,74,73,73,49,65,33,17,9,7,54,73,73,73,54,70,73,73,41,30,0,0,20,0,0,0,64,52,0,0,0,8,20,34,65,20,20,20,20,20,0,65,34,20,8,2,1,89,9,6,
+62,65,93,89,78,124,18,17,18,124,127,73,73,73,54,62,65,65,65,34,127,65,65,65,62,127,73,73,73,65,127,9,9,9,1,62,65,65,81,115,127,8,8,8,127,0,65,127,65,0,32,64,65,63,1,127,8,20,34,65,127,64,64,64,64,127,2,28,2,127,127,4,8,16,127,62,65,65,65,62,
+127,9,9,9,6,62,65,81,33,94,127,9,25,41,70,38,73,73,73,50,3,1,127,1,3,63,64,64,64,63,31,32,64,32,31,63,64,56,64,63,99,20,8,20,99,3,4,120,4,3,97,89,73,77,67,0,127,65,65,65,2,4,8,16,32,0,65,65,65,127,4,2,1,2,4,64,64,64,64,64,
+0,3,7,8,0,32,84,84,120,64,127,40,68,68,56,56,68,68,68,40,56,68,68,40,127,56,84,84,84,24,0,8,126,9,2,24,164,164,156,120,127,8,4,4,120,0,68,125,64,0,32,64,64,61,0,127,16,40,68,0,0,65,127,64,0,124,4,120,4,120,124,8,4,4,120,56,68,68,68,56,
+252,24,36,36,24,24,36,36,24,252,124,8,4,4,8,72,84,84,84,36,4,4,63,68,36,60,64,64,32,124,28,32,64,32,28,60,64,48,64,60,68,40,16,40,68,76,144,144,144,124,68,100,84,76,68,0,8,54,65,0,0,0,119,0,0,0,65,54,8,0,2,1,2,4,2];
+const glyphCache={};
+function glyph(ch,s){const k=ch+s;if(glyphCache[k])return glyphCache[k];
+ const code=ch.charCodeAt(0)-32,g=[];const w=6*s,h=8*s;
+ for(let y=0;y<h;y++)for(let x=0;x<w;x++){const cx=Math.floor(x/s),cy=Math.floor(y/s);
+  g.push(cx<5&&code>=0&&code<95&&(FONT[code*5+cx]>>cy)&1?1:0)}
+ return glyphCache[k]={w,h,g}}
+const oled={size:1,cx:0,cy:0,
+ clear(){buf.fill(0)},
+ setTextSize(s){this.size=s},setCursor(x,y){this.cx=x;this.cy=y},
+ print(t){for(const ch of String(t)){
+   if(this.cx+6*this.size>128){this.cx=0;this.cy+=8*this.size}
+   if(ch!==" "){const gl=glyph(ch,this.size);
+    for(let y=0;y<gl.h;y++)for(let x=0;x<gl.w;x++)if(gl.g[y*gl.w+x]){const px=this.cx+x,py=this.cy+y;if(px<128&&py<64&&px>=0&&py>=0)buf[py*128+px]=1}}
+   this.cx+=6*this.size}},
+ println(t){this.print(t);this.cx=0;this.cy+=8*this.size},
+ rect(x,y,w,h,fill){for(let j=0;j<h;j++)for(let i=0;i<w;i++){if(fill||j===0||j===h-1||i===0||i===w-1){const px=x+i,py=y+j;if(px>=0&&px<128&&py>=0&&py<64)buf[py*128+px]=1}}},
+ flush(){for(let i=0;i<buf.length;i++){const on=buf[i];img.data[i*4]=on?205:2;img.data[i*4+1]=on?236:8;img.data[i*4+2]=on?255:16;img.data[i*4+3]=255}octx.putImageData(img,0,0)}};
+
+/* ---------------- game state (main.cpp) ---------------- */
+let mode="idle",fx={},cursorPosition=0,targetPosition=0,score=0,highScore=load("best",0),dirStep=1,endKind=0,targetSeq=0;
+let modeStart=0,lastMoveTime=0,roundEndMs=0,lastDrawMs=0,lastShownSec=-1,lastTickSec=-1,startTestOnly=false;
+const level=()=>Math.floor(score/Math.max(1,cfg.pointsPerLevel))+1;
+const circDist=(a,b)=>{const d=Math.abs(a-b),n=cfg.ledCount;return d>n-d?n-d:d};
+const getCurrentSpeed=()=>{const fl=Math.min(cfg.minDelay,cfg.speedDelay),d=cfg.speedDelay-score*cfg.speedStep;return d<fl?fl:d};
+const timeLeftMs=()=>{const ref=mode==="fx"?fx.start:now();const v=roundEndMs-ref;return v<0?0:v};
+
+/* ---- ring rendering ("FastLED.show") ---- */
+const ring=$("#ring"),dots=[];
+for(let i=0;i<MAX_LEDS;i++){
+ const a=-Math.PI/2+i*2*Math.PI/MAX_LEDS,d=document.createElement("div");d.className="dot";
+ d.style.left=(50+43*Math.cos(a))+"%";d.style.top=(50+43*Math.sin(a))+"%";ring.appendChild(d);dots.push(d);
+ if(i%6===0){const n=document.createElement("div");n.className="num";n.textContent=i+1;n.style.left=(50+34*Math.cos(a))+"%";n.style.top=(50+34*Math.sin(a))+"%";ring.appendChild(n)}}
+const lastCss=new Array(MAX_LEDS).fill("");
+function showLeds(){
+ for(let i=cfg.ledCount;i<MAX_LEDS;i++)set(i,BLACK);
+ const k=.35+.65*cfg.brightness/255;
+ for(let i=0;i<MAX_LEDS;i++){
+  const c=leds[i],gm=v=>v<=0?0:Math.round(255*Math.pow(Math.min(255,v*k)/255,.55)),
+   r=gm(c[0]),g=gm(c[1]),b=gm(c[2]),lum=Math.max(r,g,b),css=r+","+g+","+b;
+  if(css===lastCss[i])continue;lastCss[i]=css;
+  const on=lum>6;
+  dots[i].style.background=on?`rgb(${css})`:"#171c44";
+  dots[i].style.borderColor=on?`rgb(${css})`:"#2a3266";
+  dots[i].style.boxShadow=on&&lum>70?`0 0 ${4+lum/9}px ${lum/40}px rgba(${css},${.35+lum/500})`:"none"}}
+function clearLEDs(){fillSolid(BLACK,MAX_LEDS);showLeds()}
+
+/* ---- OLED screens ---- */
+function oledMessage(a,b,c){oled.clear();oled.setTextSize(2);oled.setCursor(0,0);oled.println(a);oled.setTextSize(1);oled.setCursor(0,30);oled.println(b);oled.setCursor(0,45);oled.println(c);oled.flush()}
+function oledIdle(){oled.clear();oled.setTextSize(2);oled.setCursor(0,0);oled.print("CYCLONE");oled.setTextSize(1);
+ oled.setCursor(0,20);oled.print("TARGET LOCK  v2");oled.setCursor(0,33);oled.print("BEST: "+highScore);
+ oled.setCursor(0,45);oled.print("Press button to play");oled.setCursor(0,56);oled.print("192.168.4.1");oled.flush()}
+function updateOLED(){
+ const left=timeLeftMs(),rem=Math.ceil(left/1000);lastShownSec=rem;
+ oled.clear();oled.setTextSize(1);oled.setCursor(0,0);oled.print("SCORE");oled.setCursor(80,0);oled.print("TIME");
+ oled.setTextSize(3);oled.setCursor(0,10);oled.print(score);
+ if(rem>=100){oled.setTextSize(2);oled.setCursor(80,14);oled.print(Math.floor(rem/60)+":"+String(rem%60).padStart(2,"0"))}
+ else{oled.setCursor(80,10);oled.print(rem)}
+ oled.setTextSize(1);oled.setCursor(0,40);oled.print("BEST "+highScore);oled.setCursor(80,40);oled.print("LV "+level());
+ const total=Math.max(1,cfg.roundSeconds)*1000;let w=Math.floor(left*124/total);if(w>124)w=124;
+ oled.rect(0,52,128,12,false);oled.rect(2,54,Math.max(0,w),8,true);oled.flush()}
+function oledResult(k){
+ oled.clear();oled.setTextSize(2);oled.setCursor(0,0);oled.print(k===2?"YOU WIN!":k===1?"NEW BEST!":"GAME OVER");
+ oled.setTextSize(1);oled.setCursor(0,20);oled.print("SCORE");oled.setTextSize(3);oled.setCursor(0,31);oled.print(score);
+ oled.setTextSize(1);oled.setCursor(84,22);oled.print("BEST");oled.setTextSize(2);oled.setCursor(84,33);oled.print(highScore);
+ oled.setTextSize(1);oled.setCursor(0,56);oled.print("Press button to play");oled.flush()}
+
+/* ---- effect player ---- */
+function startFx(style,color,blinks,ms,center,maxDur,next){
+ let dur=2*ms*blinks;if(dur>maxDur)dur=maxDur;if(dur===0)return false;
+ fx={style,color:rgb(color),halfMs:ms,dur,start:now(),center};mode=next;return true}
+
+/* ---- game ---- */
+function generateTarget(){
+ const n=cfg.ledCount;if(n<=1)return;let t,guard=0;
+ do{t=rnd(n);guard++}while((t===targetPosition||circDist(t,cursorPosition)<=cfg.hitWindow+1)&&guard<30);
+ targetPosition=t;targetSeq++}
+function drawGame(){
+ const n=cfg.ledCount,bg=rgb(cfg.cBg),cur=rgb(cfg.cCursor);
+ fillSolid(bg,MAX_LEDS);
+ for(let t=cfg.tailLen;t>=1;t--){const idx=(((cursorPosition-dirStep*t)%n)+n)%n;set(idx,blend(bg,cur,Math.floor(255*(cfg.tailLen+1-t)/(cfg.tailLen+2))))}
+ let tc=rgb(cfg.cTarget);if(cfg.targetPulse)tc=nscale(tc,Math.floor(beatsin8(70,90,255)));
+ set(targetPosition%n,tc);set(cursorPosition%n,cur);showLeds();lastDrawMs=now()}
+function startGame(){
+ score=0;cursorPosition=0;startTestOnly=false;dirStep=cfg.dirMode===1?-1:1;generateTarget();
+ soundPlay(cfg.sndStart);oledMessage("TARGET","GET READY!","Lock it in!");mode="starting";modeStart=now();log("START  round="+cfg.roundSeconds+"s speed="+cfg.speedDelay+"ms","e")}
+function beginPlaying(){const t=now();mode="playing";lastMoveTime=t;roundEndMs=t+cfg.roundSeconds*1000;lastTickSec=-1;drawGame();updateOLED()}
+function finishEnd(){mode="idle";clearLEDs()}
+function endGame(kind){
+ const newBest=score>highScore;if(kind===0&&newBest)kind=1;
+ if(newBest){highScore=score;store("best",highScore)}
+ endKind=kind;oledResult(kind);
+ log(kind===0?"GAME OVER  score="+score:kind===1?"NEW BEST  score="+score:"YOU WIN  score="+score,kind?"c":"x");
+ if(kind===0){soundPlay(cfg.sndOver);if(!startFx(cfg.overStyle,cfg.cOver,cfg.overBlinks,cfg.overMs,cursorPosition,15000,"ending"))finishEnd()}
+ else{soundPlay(cfg.sndWin);if(!startFx(cfg.winStyle,cfg.cWin,cfg.winBlinks,cfg.winMs,cursorPosition,15000,"ending"))finishEnd()}}
+function abortGame(){soundStop();mode="idle";clearLEDs()}
+function judgePress(){
+ const hit=circDist(cursorPosition,targetPosition)<=cfg.hitWindow,center=cursorPosition;
+ if(hit){
+  const old=level();score+=cfg.hitPoints;if(cfg.timeBonus)roundEndMs+=cfg.timeBonus*1000;
+  log("HIT   led="+(cursorPosition+1)+" score="+score,"c");
+  if(cfg.winScore&&score>=cfg.winScore){endGame(2);return}
+  if(cfg.dirMode===2)dirStep=-dirStep;else if(cfg.dirMode===3)dirStep=rnd(2)?1:-1;
+  soundPlay(level()>old?cfg.sndLevel:cfg.sndHit);generateTarget();
+  if(!startFx(cfg.hitStyle,cfg.cHit,cfg.hitBlinks,cfg.hitMs,center,2000,"fx"))drawGame();
+ }else{
+  score=Math.max(0,score-cfg.missPenalty);
+  if(cfg.timePenalty){const cut=cfg.timePenalty*1000;roundEndMs=timeLeftMs()>cut?roundEndMs-cut:now()}
+  log("MISS  led="+(cursorPosition+1)+" target="+(targetPosition+1)+" score="+score,"x");
+  soundPlay(cfg.sndMiss);generateTarget();
+  if(!startFx(cfg.missStyle,cfg.cMiss,cfg.missBlinks,cfg.missMs,center,2000,"fx"))drawGame()}
+ updateOLED()}
+function onPress(){if(mode==="idle")startGame();else if(mode==="playing")judgePress()}
+
+/* ---- per-mode ticks ---- */
+let lastIdle=0;
+function tickIdle(){const t=now();if(t-lastIdle<25)return;lastIdle=t;idleFrame(cfg.idleMode,rgb(cfg.cIdle),cfg.idleSpeed,cfg.ledCount);showLeds()}
+function tickStarting(){
+ const el=now()-modeStart,sweepMs=cfg.startSweep*cfg.ledCount;
+ sweepFrame(rgb(cfg.cStart),el,cfg.startSweep,cfg.ledCount);showLeds();
+ if(el>=sweepMs+250){if(startTestOnly){startTestOnly=false;mode="idle";clearLEDs();oledIdle()}else beginPlaying()}}
+function tickPlaying(){
+ const t=now();
+ if(timeLeftMs()===0){endGame(0);return}
+ if(t-lastMoveTime>=getCurrentSpeed()){
+  lastMoveTime=t;cursorPosition=(cursorPosition+dirStep+cfg.ledCount)%cfg.ledCount;
+  if(cfg.stepClick&&!seqActive)clickTone(2600,4);drawGame();
+ }else if(cfg.targetPulse&&t-lastDrawMs>33)drawGame();
+ const rem=Math.ceil(timeLeftMs()/1000);
+ if(rem!==lastShownSec){updateOLED();
+  if(cfg.tickSec&&rem<=cfg.tickSec&&rem>0&&rem!==lastTickSec){lastTickSec=rem;soundPlay(cfg.sndTick)}}}
+let lastFrame=0;
+function tickFx(){
+ const t=now(),el=t-fx.start;
+ if(el>=fx.dur){
+  if(mode==="fx"){roundEndMs+=fx.dur;lastMoveTime=t;mode="playing";drawGame();updateOLED()}
+  else if(mode==="ending")finishEnd();
+  else{mode="idle";clearLEDs();oledIdle()}
+  return}
+ if(t-lastFrame<12)return;lastFrame=t;
+ fxFrame(fx.style,fx.color,el,fx.halfMs,fx.center,cfg.ledCount);showLeds()}
+
+/* ---------------- autopilot (browser-only helper) ---------------- */
+let bot=false,botSkill=.85,botAim=-1,botSeq=-1,botStartAt=0;
+function botTick(){
+ if(!bot)return;const t=now();
+ if(mode==="idle"){if(!botStartAt)botStartAt=t+1200;if(t>=botStartAt){botStartAt=0;onPress()}return}
+ if(mode!=="playing")return;
+ if(botSeq!==targetSeq){botSeq=targetSeq;const n=cfg.ledCount;
+  botAim=Math.random()<botSkill?targetPosition:(targetPosition+(rnd(2)?1:-1)*(1+rnd(3))+n)%n}
+ if(cursorPosition===botAim&&botAim>=0){botAim=-1;onPress()}}
+
+/* ---------------- main loop ---------------- */
+function loop(){
+ soundLoop();botTick();
+ switch(mode){case"idle":tickIdle();break;case"starting":tickStarting();break;case"playing":tickPlaying();break;default:tickFx()}
+ hud();requestAnimationFrame(loop)}
+
+/* ---------------- HUD ---------------- */
+let lastHud="";
+function hud(){
+ const live=mode==="playing"||mode==="fx",left=live?Math.ceil(timeLeftMs()/1000):cfg.roundSeconds;
+ const sig=[mode,score,left,level(),highScore,getCurrentSpeed(),seqActive].join("|");
+ $("#buzz").classList.toggle("on",seqActive&&soundOn);
+ if(sig===lastHud)return;lastHud=sig;
+ const m=$("#chipMode");m.textContent=mode;m.className="chip "+mode;
+ $("#sScore").textContent=score;$("#sTime").textContent=left;$("#sLevel").textContent=level();$("#sBest").textContent=highScore;
+ $("#chipSpeed").textContent=getCurrentSpeed()+" ms";
+ $("#tbar").style.width=(live?Math.min(100,100*timeLeftMs()/(cfg.roundSeconds*1000)):100)+"%"}
+
+/* ---------------- serial monitor ---------------- */
+const logEl=$("#log"),t0=now();
+function log(msg,cls){
+ const d=document.createElement("div"),s=((now()-t0)/1000).toFixed(1).padStart(6," ");
+ d.innerHTML='<span class="t">['+s+'s]</span> <span class="'+(cls||"")+'">'+msg.replace(/</g,"&lt;")+"</span>";
+ logEl.appendChild(d);while(logEl.children.length>80)logEl.removeChild(logEl.firstChild);logEl.scrollTop=logEl.scrollHeight}
+
+/* ---------------- control panel (mirrors the web page on the device) ---------------- */
+const TABS={
+Game:[["h","Round"],["range","roundSeconds","Round time","s"],["range","winScore","Win when score reaches (0 = off)",""],["range","timeBonus","Time bonus per hit","s"],["range","timePenalty","Time penalty per miss","s"],
+["h","Speed"],["range","speedDelay","Start speed (ms per step, lower = faster)","ms"],["range","minDelay","Fastest speed","ms"],["range","speedStep","Speed-up per point","ms"],["range","pointsPerLevel","Points per level",""],
+["h","Scoring"],["range","hitPoints","Points per hit",""],["range","missPenalty","Penalty per miss",""],["range","hitWindow","Hit window (+/- LEDs)",""],
+["h","Ring"],["range","ledCount","Number of LEDs",""],["range","brightness","Brightness",""],["select","dirMode","Direction","",DIR_NAMES]],
+Look:[["h","Running cursor"],["color","cCursor","Cursor colour"],["color","cTarget","Target colour"],["color","cBg","Background colour"],["range","tailLen","Comet tail length","LEDs"],["toggle","targetPulse","Pulsing target"],
+["h","Start sweep"],["color","cStart","Sweep colour"],["range","startSweep","Sweep speed (0 = none)","ms/LED"],["test","start","&#9654; Test start sweep"],
+["h","Idle / attract mode"],["select","idleMode","Animation","",IDLE_NAMES],["color","cIdle","Idle colour"],["range","idleSpeed","Chase step","ms"]],
+Effects:[["h","On every HIT","hit"],["select","hitStyle","Style","",STYLE_NAMES],["range","hitBlinks","Blink count",""],["range","hitMs","Blink time","ms"],["color","cHit","Colour"],
+["h","On every MISS","miss"],["select","missStyle","Style","",STYLE_NAMES],["range","missBlinks","Blink count",""],["range","missMs","Blink time","ms"],["color","cMiss","Colour"],
+["h","GAME OVER (time up)","over"],["select","overStyle","Style","",STYLE_NAMES],["range","overBlinks","Blink count",""],["range","overMs","Blink time","ms"],["color","cOver","Colour"],
+["h","WIN / NEW BEST","win"],["select","winStyle","Style","",STYLE_NAMES],["range","winBlinks","Blink count",""],["range","winMs","Blink time","ms"],["color","cWin","Colour"],
+["note","Effect length = blinks x 2 x blink time (hit/miss capped at 2 s, game over / win at 15 s). Blinks = 0 switches an effect off."]],
+Sound:[["toggle","buzzer","Buzzer on (device setting)"],["h","Sound effects"],["snd","sndStart","Round start"],["snd","sndHit","Hit"],["snd","sndLevel","Level up"],["snd","sndMiss","Miss"],["snd","sndOver","Game over"],["snd","sndWin","Win / new best"],
+["h","Countdown"],["snd","sndTick","Tick sound"],["range","tickSec","Tick during last N seconds (0 = off)","s"],["toggle","stepClick","Click on every cursor step"]],
+Presets:[["presets"]]};
+function mk(t,c,h){const e=document.createElement(t);if(c)e.className=c;if(h!==undefined)e.innerHTML=h;return e}
+function toast(t){const e=$("#toast");e.textContent=t;e.classList.add("show");clearTimeout(toast.t);toast.t=setTimeout(()=>e.classList.remove("show"),1800)}
+function changed(k){
+ clampCfg();cfg.ledCount=Math.max(1,cfg.ledCount);cursorPosition%=cfg.ledCount;targetPosition%=cfg.ledCount;
+ if(cfg.dirMode<2)dirStep=cfg.dirMode===1?-1:1;
+ if(mode==="playing"){drawGame();updateOLED()}
+ store("cfg",cfg);if(k)log("SET   "+k+"="+(COLORS.includes(k)?hex6(cfg[k]):cfg[k]))}
+function testFx(kind){
+ if(mode!=="idle"){toast("Stop the game first");return}
+ const c=rnd(cfg.ledCount);let ok=true;
+ if(kind==="hit"){soundPlay(cfg.sndHit);ok=startFx(cfg.hitStyle,cfg.cHit,cfg.hitBlinks,cfg.hitMs,c,2000,"test")}
+ else if(kind==="miss"){soundPlay(cfg.sndMiss);ok=startFx(cfg.missStyle,cfg.cMiss,cfg.missBlinks,cfg.missMs,c,2000,"test")}
+ else if(kind==="over"){soundPlay(cfg.sndOver);ok=startFx(cfg.overStyle,cfg.cOver,cfg.overBlinks,cfg.overMs,c,15000,"test")}
+ else if(kind==="win"){soundPlay(cfg.sndWin);ok=startFx(cfg.winStyle,cfg.cWin,cfg.winBlinks,cfg.winMs,c,15000,"test")}
+ else if(kind==="start"){soundPlay(cfg.sndStart);startTestOnly=true;mode="starting";modeStart=now()}
+ if(!ok)toast("That effect has 0 blinks")}
+function control(sp){
+ const [t,k,l,u,x]=sp;
+ if(t==="h"){const d=mk("div","h",k);if(l){const b=mk("button","sm ghost","&#9654; Test");b.onclick=()=>{audioInit();testFx(l)};d.appendChild(b)}return d}
+ if(t==="note")return mk("div","note",k);
+ if(t==="test"){const b=mk("button","sm",l);b.style.marginTop="8px";b.onclick=()=>{audioInit();testFx(k)};return b}
+ const r=mk("div","row");r.appendChild(mk("label","",l));
+ if(t==="range"){const o=mk("output");o.dataset.o=k;o.dataset.u=u||"";r.appendChild(o);const i=mk("input");i.type="range";i.dataset.k=k;i.min=LIM[k][0];i.max=LIM[k][1];
+  i.oninput=()=>{cfg[k]=+i.value;o.textContent=i.value+(u?" "+u:"");changed(k)};r.appendChild(i)}
+ else if(t==="color"){const i=mk("input");i.type="color";i.dataset.k=k;i.oninput=()=>{cfg[k]=unhex(i.value);changed(k)};r.appendChild(i)}
+ else if(t==="toggle"){const w=mk("label","sw"),i=mk("input");i.type="checkbox";i.dataset.k=k;i.onchange=()=>{cfg[k]=i.checked?1:0;changed(k)};w.appendChild(i);w.appendChild(mk("span"));r.appendChild(w)}
+ else{const s=mk("select");s.dataset.k=k;(x||SOUND_NAMES).forEach((n,i)=>{const o=mk("option","",n);o.value=i;s.appendChild(o)});s.onchange=()=>{cfg[k]=+s.value;changed(k)};
+  if(t==="snd"){const w=mk("div");w.style.cssText="display:flex;gap:6px";const b=mk("button","sm","&#9654;");b.onclick=()=>{audioInit();soundPlay(+s.value,true)};w.appendChild(s);w.appendChild(b);r.appendChild(w)}else r.appendChild(s)}
+ return r}
+function presetsTab(box){
+ box.appendChild(mk("div","h","Built-in presets"));const g=mk("div","pgrid");
+ PRESETS.forEach((p,i)=>{const c=mk("div","pc","<div><b>"+p[0]+"</b><small>"+p[1]+"</small></div>");const b=mk("button","sm","Apply");
+  b.onclick=()=>{applyPreset(i);changed();log("PRESET "+p[0],"c");refresh();toast(p[0]+" applied")};c.appendChild(b);g.appendChild(c)});box.appendChild(g);
+ box.appendChild(mk("div","h","My presets (saved in this browser)"));const g2=mk("div","pgrid"),slots=load("slots",[null,null,null]);
+ for(let i=0;i<3;i++){const c=mk("div","pc","<div><b>Slot "+(i+1)+"</b><small>"+(slots[i]?"saved":"empty")+"</small></div>"),w=mk("div","w");
+  const sv=mk("button","sm","Save");sv.onclick=()=>{const s=load("slots",[null,null,null]);s[i]=cfg;store("slots",s);build();toast("Saved to slot "+(i+1))};
+  const ld=mk("button","sm ghost","Load");ld.onclick=()=>{const s=load("slots",[null,null,null]);if(!s[i]){toast("Slot is empty");return}cfg=Object.assign(defaults(),s[i]);changed();refresh();toast("Slot "+(i+1)+" loaded")};
+  w.appendChild(sv);w.appendChild(ld);c.appendChild(w);g2.appendChild(c)}
+ box.appendChild(g2);
+ box.appendChild(mk("div","h","Backup"));const w=mk("div");w.style.cssText="display:flex;gap:8px;flex-wrap:wrap";
+ const ex=mk("button","sm","Export settings");ex.onclick=()=>{const o={};for(const k in cfg)o[k]=COLORS.includes(k)?hex6(cfg[k]):cfg[k];const a=document.createElement("a");a.href="data:application/json,"+encodeURIComponent(JSON.stringify(o,null,1));a.download="cyclone-settings.json";a.click()};
+ const f=mk("input");f.type="file";f.accept=".json";f.style.display="none";
+ f.onchange=async()=>{try{const j=JSON.parse(await f.files[0].text());for(const k in j)if(k in cfg)cfg[k]=COLORS.includes(k)?unhex(j[k]):+j[k];changed();refresh();toast("Settings imported")}catch(e){toast("Bad file")}};
+ const im=mk("button","sm ghost","Import settings");im.onclick=()=>f.click();
+ const rb=mk("button","sm ghost","Reset high score");rb.onclick=()=>{highScore=0;store("best",0);lastHud="";if(mode==="idle")oledIdle();toast("High score reset")};
+ const fr=mk("button","sm ghost","Factory reset");fr.onclick=()=>{cfg=defaults();changed();refresh();toast("Defaults restored")};
+ [ex,im,rb,fr,f].forEach(e=>w.appendChild(e));box.appendChild(w)}
+let cur="Game";
+function build(){
+ const nav=$("#nav"),tabs=$("#tabs");nav.innerHTML="";tabs.innerHTML="";
+ Object.keys(TABS).forEach(n=>{
+  const b=mk("button",n===cur?"on":"",n);b.onclick=()=>{cur=n;build()};nav.appendChild(b);
+  const c=mk("div","tab"+(n===cur?" on":""));
+  TABS[n].forEach(sp=>sp[0]==="presets"?presetsTab(c):c.appendChild(control(sp)));tabs.appendChild(c)});
+ refresh()}
+function refresh(){
+ document.querySelectorAll("[data-k]").forEach(e=>{const v=cfg[e.dataset.k];if(v===undefined)return;
+  if(e.type==="checkbox")e.checked=!!v;else if(e.type==="color")e.value=hex6(v);else e.value=v});
+ document.querySelectorAll("[data-o]").forEach(o=>{o.textContent=cfg[o.dataset.o]+(o.dataset.u?" "+o.dataset.u:"")});
+ lastHud=""}
+
+/* ---------------- wiring ---------------- */
+const btn=$("#btn");
+function press(){audioInit();if(audio&&audio.state==="suspended")audio.resume();onPress()}
+btn.addEventListener("pointerdown",e=>{e.preventDefault();btn.classList.add("down");press()});
+["pointerup","pointerleave","pointercancel"].forEach(ev=>btn.addEventListener(ev,()=>btn.classList.remove("down")));
+addEventListener("keydown",e=>{
+ if(e.repeat)return;const tag=(e.target.tagName||"").toLowerCase();
+ if((e.code==="Space"||e.code==="Enter")&&tag!=="input"&&tag!=="select"&&tag!=="button"&&tag!=="textarea"){e.preventDefault();btn.classList.add("down");press()}});
+addEventListener("keyup",e=>{if(e.code==="Space"||e.code==="Enter")btn.classList.remove("down")});
+$("#bStart").onclick=()=>{audioInit();if(mode==="idle"||mode==="playing"||mode==="fx")startGame()};
+$("#bStop").onclick=()=>{if(mode!=="idle"){abortGame();oledMessage("STOPPED","Press button","or use the web");log("STOP","x")}};
+$("#bBot").onclick=e=>{bot=!bot;e.currentTarget.classList.toggle("on",bot);$("#botRow").classList.toggle("show",bot);log(bot?"AUTOPILOT on":"AUTOPILOT off","e");if(bot)audioInit()};
+$("#botSkill").oninput=e=>{botSkill=e.target.value/100;$("#botVal").textContent=e.target.value+"%"};
+$("#bSnd").onclick=e=>{audioInit();soundOn=!soundOn;e.currentTarget.classList.toggle("on",soundOn);e.currentTarget.innerHTML=soundOn?"&#128266; Sound":"&#128264; Muted";if(!soundOn)noTone()};
+$("#clr").onclick=()=>{logEl.innerHTML=""};
+
+/* ---------------- boot ---------------- */
+const saved=load("cfg",null);if(saved){cfg=Object.assign(defaults(),saved);clampCfg()}
+build();
+log("CYCLONE TARGET LOCK v2","c");log("SSID: CycloneGame  IP: 192.168.4.1");log("Press the big button (or Space) to start","e");
+generateTarget();oledIdle();
+const q=new URLSearchParams(location.search);
+if(q.get("demo")){soundOn=false;$("#bSnd").classList.remove("on");bot=true;botSkill=.9;$("#bBot").classList.add("on");$("#botRow").classList.add("show");
+ if(q.get("tab")){cur=q.get("tab");build()}}
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
