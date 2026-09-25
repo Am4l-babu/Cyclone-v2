@@ -554,6 +554,24 @@ The button must go between **D5 and GND**. Run `test_button`; a floating wire ca
 
 ---
 
+## 👥 Contributors
+
+<table>
+  <tr>
+    <td align="center">
+      <a href="https://github.com/Am4l-babu">
+        <img src="https://github.com/Am4l-babu.png?size=100" width="100" alt="Am4l-babu"><br>
+        <sub><b>Am4l-babu</b></sub>
+      </a><br>
+      <sub>Creator &amp; maintainer</sub>
+    </td>
+  </tr>
+</table>
+
+Ideas and pull requests are welcome. Fork the repo, change the code in `src/`, run `python tools/sync_arduino.py`, and open a PR.
+
+---
+
 <div align="center">
 
 **Designed, built and written by [Am4l-babu](https://github.com/Am4l-babu)**
