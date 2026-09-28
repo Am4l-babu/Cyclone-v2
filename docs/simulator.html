@@ -105,6 +105,19 @@ button.sm.ghost{background:transparent;border:1px solid var(--line);color:var(--
 .ct{font-size:12px;letter-spacing:1.5px;text-transform:uppercase;color:var(--dim);margin:14px 4px 6px;display:flex;justify-content:space-between}
 #toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%) translateY(90px);background:#0e1330;border:1px solid var(--cy);padding:10px 18px;border-radius:99px;transition:.3s;z-index:30;font-size:14px}
 #toast.show{transform:translateX(-50%) translateY(0)}
+.p2{display:none;margin:12px auto 0;width:100%;border:0;border-radius:14px;padding:12px;font:900 16px/1 "Segoe UI",sans-serif;letter-spacing:.12em;color:#fff;cursor:pointer;
+  background:linear-gradient(#1f8fff,#0a5ad1);box-shadow:0 5px 0 #06357a;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+.p2.show{display:block}.p2:active,.p2.down{transform:translateY(4px);box-shadow:0 1px 0 #06357a}
+.combo{background:var(--yl);color:#1a1200;border-color:var(--yl);display:none}
+.lb{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
+.lb td,.lb th{padding:8px 6px;border-bottom:1px solid #1c2350;text-align:left;font-size:14px}
+.lb th{font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:1px;font-weight:600}
+.lb td:first-child{color:var(--cy);font-weight:800;width:34px}
+.lb tr.me td{background:#1c6cff22}
+#modal{position:fixed;inset:0;background:#000a;display:none;align-items:center;justify-content:center;z-index:40;padding:16px}
+#modal.show{display:flex}
+#modal .panel{max-width:340px;width:100%;text-align:center}
+#modal input{font:800 34px/1 system-ui;width:150px;text-align:center;letter-spacing:10px;text-transform:uppercase;background:var(--card2);color:var(--txt);border:1px solid var(--line);border-radius:12px;padding:10px;margin:10px 0}
 footer{text-align:center;color:var(--dim);font-size:12px;margin-top:26px;line-height:1.7}
 footer a{color:var(--cy);text-decoration:none}
 </style>
@@ -124,17 +137,20 @@ footer a{color:var(--cy);text-decoration:none}
       <button class="arcade" id="btn" aria-label="Game button">PRESS<small>SPACE</small></button>
     </div>
 
+    <button class="p2" id="btn2" aria-label="Player 2 button">PLAYER 2 &middot; L</button>
+
     <div class="chips">
       <span class="chip" id="chipMode">idle</span>
+      <span class="chip combo" id="chipCombo"></span>
       <span class="buzzer" id="buzz"><span class="wave"><i></i><i></i><i></i><i></i></span><span id="buzzTxt">buzzer</span></span>
       <span class="chip" id="chipSpeed">80 ms</span>
     </div>
 
     <div class="stats">
-      <div class="kv"><b id="sScore">0</b><span>Score</span></div>
+      <div class="kv"><b id="sScore">0</b><span id="lScore">Score</span></div>
       <div class="kv"><b id="sTime">60</b><span>Time</span></div>
       <div class="kv"><b id="sLevel">1</b><span>Level</span></div>
-      <div class="kv"><b id="sBest">0</b><span>Best</span></div>
+      <div class="kv"><b id="sBest">0</b><span id="lBest">Best</span></div>
     </div>
 
     <div class="btns">
@@ -144,7 +160,7 @@ footer a{color:var(--cy);text-decoration:none}
       <button class="b ghost on" id="bSnd">&#128266; Sound</button>
     </div>
     <div class="bot" id="botRow"><span>Bot skill</span><input type="range" id="botSkill" min="20" max="100" value="85"><b id="botVal">85%</b></div>
-    <div class="hint"><kbd>Space</kbd> / <kbd>Enter</kbd> or tap the big button &middot; hold nothing, timing is everything</div>
+    <div class="hint"><kbd>Space</kbd> / <kbd>Enter</kbd> or tap the big button &middot; duel: player 2 is <kbd>L</kbd> &middot; timing is everything</div>
   </section>
 
   <section>
@@ -162,6 +178,12 @@ footer a{color:var(--cy);text-decoration:none}
   Made by <a href="https://github.com/Am4l-babu" target="_blank" rel="noopener">Am4l-babu</a> &middot; Cyclone Target Lock v2
 </footer>
 <div id="toast"></div>
+<div id="modal"><div class="panel">
+  <div class="h" style="justify-content:center">New high score!</div>
+  <div id="mTxt" class="note"></div>
+  <input id="mName" maxlength="3" autocomplete="off" placeholder="AAA">
+  <div class="btns"><button class="b go" id="mSave">Save</button><button class="b ghost" id="mSkip">Skip</button></div>
+</div></div>
 
 <script>
 "use strict";
@@ -181,6 +203,7 @@ const STYLE_NAMES=["Blink","Ripple","Sparkle","Rainbow","Spin","Fill up"];
 const IDLE_NAMES=["Off","Chase","Rainbow","Breathe","Sparkle"];
 const DIR_NAMES=["Clockwise","Counter-clockwise","Flip on every hit","Random on every hit"];
 const SOUND_NAMES=["Off","Beep","Chirp up","Chirp down","Coin","Low buzz","Fanfare","Sad trombone","Siren","Power up","Laser","Tick"];
+const PLAYER_NAMES=["Solo","Duel (2 buttons)","Turns (2 players, 1 button)"];
 const PRESETS=[
  ["Classic","The original look: green cursor, red target, 60 s round."],
  ["Neon Night","Cyan comet, pulsing magenta target, ripple effects."],
@@ -194,19 +217,19 @@ const LIM={roundSeconds:[10,600],speedDelay:[10,1000],minDelay:[5,500],winScore:
  tailLen:[0,8],targetPulse:[0,1],idleMode:[0,4],idleSpeed:[10,250],startSweep:[0,100],
  hitStyle:[0,5],hitBlinks:[0,10],hitMs:[20,500],missStyle:[0,5],missBlinks:[0,10],missMs:[20,500],
  overStyle:[0,5],overBlinks:[0,20],overMs:[20,1000],winStyle:[0,5],winBlinks:[0,20],winMs:[20,1000],
- buzzer:[0,1],sndStart:[0,11],sndHit:[0,11],sndLevel:[0,11],sndMiss:[0,11],sndOver:[0,11],sndWin:[0,11],sndTick:[0,11],tickSec:[0,30],stepClick:[0,1]};
-const COLORS=["cTarget","cBg","cCursor","cHit","cMiss","cOver","cWin","cStart","cIdle"];
+ buzzer:[0,1],sndStart:[0,11],sndHit:[0,11],sndLevel:[0,11],sndMiss:[0,11],sndOver:[0,11],sndWin:[0,11],sndTick:[0,11],tickSec:[0,30],stepClick:[0,1],playerMode:[0,2],comboEvery:[0,10]};
+const COLORS=["cTarget","cBg","cCursor","cHit","cMiss","cOver","cWin","cStart","cIdle","cP2"];
 function defaults(){return{
  roundSeconds:60,speedDelay:80,minDelay:20,winScore:0,speedStep:2,pointsPerLevel:5,hitPoints:1,missPenalty:1,hitWindow:0,timeBonus:0,timePenalty:0,
  dirMode:0,ledCount:24,brightness:100,
  cTarget:0xFF0000,cBg:0x000014,cCursor:0x00FF00,cHit:0x00FF00,cMiss:0xFF0000,cOver:0xFF0000,cWin:0xFFD700,cStart:0x0000FF,cIdle:0x00AFFF,
  tailLen:0,targetPulse:0,idleMode:1,idleSpeed:70,startSweep:25,
  hitStyle:0,hitBlinks:1,hitMs:40,missStyle:0,missBlinks:1,missMs:60,overStyle:0,overBlinks:3,overMs:150,winStyle:3,winBlinks:3,winMs:250,
- buzzer:1,sndStart:9,sndHit:2,sndLevel:4,sndMiss:5,sndOver:7,sndWin:6,sndTick:11,tickSec:5,stepClick:0}}
+ buzzer:1,sndStart:9,sndHit:2,sndLevel:4,sndMiss:5,sndOver:7,sndWin:6,sndTick:11,tickSec:5,stepClick:0,playerMode:0,comboEvery:0,cP2:0x00AFFF}}
 let cfg=defaults();
 function clampCfg(){for(const k in LIM)cfg[k]=clamp(cfg[k]|0,LIM[k][0],LIM[k][1]);for(const k of COLORS)cfg[k]=clamp(cfg[k]|0,0,0xFFFFFF)}
 function applyPreset(id){
- const keep=cfg.ledCount;cfg=defaults();cfg.ledCount=keep;
+ const keep=cfg.ledCount,keepP=cfg.playerMode;cfg=defaults();cfg.ledCount=keep;cfg.playerMode=keepP;
  const P={
  1:{cTarget:0xFF00C8,cBg:0x0A001E,cCursor:0x00FFFF,cHit:0x00FFFF,cMiss:0xFF0050,cOver:0xFF0050,cWin:0xFF00C8,cIdle:0x00FFFF,tailLen:4,targetPulse:1,hitStyle:1,hitBlinks:1,hitMs:120,overStyle:4,overBlinks:3,overMs:250,winStyle:1,winBlinks:4,winMs:200,sndHit:10},
  2:{cCursor:0xFFC800,cTarget:0xFF2020,cBg:0x100800,cHit:0xFFC800,cIdle:0xFFC800,tailLen:2,hitStyle:5,hitBlinks:1,hitMs:70,sndHit:4,sndLevel:9},
@@ -312,12 +335,22 @@ const oled={size:1,cx:0,cy:0,
  flush(){for(let i=0;i<buf.length;i++){const on=buf[i];img.data[i*4]=on?205:2;img.data[i*4+1]=on?236:8;img.data[i*4+2]=on?255:16;img.data[i*4+3]=255}octx.putImageData(img,0,0)}};
 
 /* ---------------- game state (main.cpp) ---------------- */
-let mode="idle",fx={},cursorPosition=0,targetPosition=0,score=0,highScore=load("best",0),dirStep=1,endKind=0,targetSeq=0;
+const COMBO_MAX=4,LB_COUNT=5;
+let mode="idle",fx={},cursorPosition=0,targetPosition=0,highScore=load("best",0),dirStep=1,endKind=0,targetSeq=0,turn=0;
 let modeStart=0,lastMoveTime=0,roundEndMs=0,lastDrawMs=0,lastShownSec=-1,lastTickSec=-1,startTestOnly=false;
-const level=()=>Math.floor(score/Math.max(1,cfg.pointsPerLevel))+1;
+const newRound=()=>({score:0,hits:0,misses:0,early:0,late:0,streak:0,bestStreak:0});
+let pr=[newRound(),newRound()],lastRound=null,lb=load("lb",[]),lbPending=-1;
+const isDuel=()=>cfg.playerMode===1,isTurns=()=>cfg.playerMode===2;
+const activePlayer=()=>isTurns()?turn:0;
+const paceScore=()=>isDuel()?pr[0].score+pr[1].score:pr[activePlayer()].score;
+const level=()=>Math.floor(paceScore()/Math.max(1,cfg.pointsPerLevel))+1;
+const comboMult=p=>cfg.comboEvery?Math.min(COMBO_MAX,1+Math.floor(pr[p].streak/cfg.comboEvery)):1;
 const circDist=(a,b)=>{const d=Math.abs(a-b),n=cfg.ledCount;return d>n-d?n-d:d};
-const getCurrentSpeed=()=>{const fl=Math.min(cfg.minDelay,cfg.speedDelay),d=cfg.speedDelay-score*cfg.speedStep;return d<fl?fl:d};
+// steps from the target to the cursor along the direction of travel: <0 early, >0 late
+const signedOffset=()=>{const n=cfg.ledCount,d=(((cursorPosition-targetPosition)*dirStep)%n+n)%n;return d>Math.floor(n/2)?d-n:d};
+const getCurrentSpeed=()=>{const fl=Math.min(cfg.minDelay,cfg.speedDelay),d=cfg.speedDelay-paceScore()*cfg.speedStep;return d<fl?fl:d};
 const timeLeftMs=()=>{const ref=mode==="fx"?fx.start:now();const v=roundEndMs-ref;return v<0?0:v};
+const accuracy=p=>{const n=p.hits+p.misses;return n?Math.floor((p.hits*100+Math.floor(n/2))/n):0};
 
 /* ---- ring rendering ("FastLED.show") ---- */
 const ring=$("#ring"),dots=[];
@@ -341,28 +374,65 @@ function clearLEDs(){fillSolid(BLACK,MAX_LEDS);showLeds()}
 
 /* ---- OLED screens ---- */
 function oledMessage(a,b,c){oled.clear();oled.setTextSize(2);oled.setCursor(0,0);oled.println(a);oled.setTextSize(1);oled.setCursor(0,30);oled.println(b);oled.setCursor(0,45);oled.println(c);oled.flush()}
-function oledIdle(){oled.clear();oled.setTextSize(2);oled.setCursor(0,0);oled.print("CYCLONE");oled.setTextSize(1);
- oled.setCursor(0,20);oled.print("TARGET LOCK  v2");oled.setCursor(0,33);oled.print("BEST: "+highScore);
+function oledIdle(){
+ oled.clear();
+ if(isTurns()&&turn===1){
+  oled.setTextSize(2);oled.setCursor(0,0);oled.print("P1: "+pr[0].score);
+  oled.setTextSize(1);oled.setCursor(0,24);oled.print("Player 2, your turn!");
+  oled.setCursor(0,40);oled.print("Score more than "+pr[0].score);
+  oled.setCursor(0,56);oled.print("Press button to play");oled.flush();return}
+ oled.setTextSize(2);oled.setCursor(0,0);oled.print("CYCLONE");oled.setTextSize(1);
+ oled.setCursor(0,20);oled.print(isDuel()?"DUEL   2 buttons":isTurns()?"TURNS  P1 then P2":"TARGET LOCK  v2");
+ oled.setCursor(0,33);oled.print("BEST: "+highScore);
  oled.setCursor(0,45);oled.print("Press button to play");oled.setCursor(0,56);oled.print("192.168.4.1");oled.flush()}
+function printTime(rem,x,y,size){oled.setTextSize(size);oled.setCursor(x,y);
+ oled.print(rem>=100?Math.floor(rem/60)+":"+String(rem%60).padStart(2,"0"):rem)}
+function drawTimeBar(left){const total=Math.max(1,cfg.roundSeconds)*1000;let w=Math.floor(left*124/total);if(w>124)w=124;
+ oled.rect(0,52,128,12,false);oled.rect(2,54,Math.max(0,w),8,true)}
+const digits=v=>v>=100?3:v>=10?2:1;
+function oledDuel(rem,left){
+ oled.setTextSize(1);oled.setCursor(0,0);oled.print("P1");oled.setCursor(116,0);oled.print("P2");
+ oled.setTextSize(3);oled.setCursor(0,10);oled.print(pr[0].score);oled.setCursor(128-digits(pr[1].score)*18,10);oled.print(pr[1].score);
+ printTime(rem,rem>=100?52:56,16,rem>=100?1:2);
+ oled.setTextSize(1);
+ for(let p=0;p<2;p++){const m=comboMult(p);if(m>1){oled.setCursor(p?110:0,40);oled.print("x"+m)}}
+ oled.setCursor(46,40);oled.print("LV "+level());drawTimeBar(left)}
 function updateOLED(){
  const left=timeLeftMs(),rem=Math.ceil(left/1000);lastShownSec=rem;
- oled.clear();oled.setTextSize(1);oled.setCursor(0,0);oled.print("SCORE");oled.setCursor(80,0);oled.print("TIME");
- oled.setTextSize(3);oled.setCursor(0,10);oled.print(score);
- if(rem>=100){oled.setTextSize(2);oled.setCursor(80,14);oled.print(Math.floor(rem/60)+":"+String(rem%60).padStart(2,"0"))}
- else{oled.setCursor(80,10);oled.print(rem)}
+ oled.clear();
+ if(isDuel()){oledDuel(rem,left);oled.flush();return}
+ const p=pr[activePlayer()];
+ oled.setTextSize(1);oled.setCursor(0,0);oled.print(isTurns()?(turn?"P2 SCORE":"P1 SCORE"):"SCORE");
+ const m=comboMult(activePlayer());if(m>1){oled.setCursor(56,0);oled.print("x"+m)}
+ oled.setCursor(80,0);oled.print("TIME");
+ oled.setTextSize(3);oled.setCursor(0,10);oled.print(p.score);
+ if(rem>=100)printTime(rem,80,14,2);else printTime(rem,80,10,3);
  oled.setTextSize(1);oled.setCursor(0,40);oled.print("BEST "+highScore);oled.setCursor(80,40);oled.print("LV "+level());
- const total=Math.max(1,cfg.roundSeconds)*1000;let w=Math.floor(left*124/total);if(w>124)w=124;
- oled.rect(0,52,128,12,false);oled.rect(2,54,Math.max(0,w),8,true);oled.flush()}
+ drawTimeBar(left);oled.flush()}
 function oledResult(k){
+ const p=pr[activePlayer()];
  oled.clear();oled.setTextSize(2);oled.setCursor(0,0);oled.print(k===2?"YOU WIN!":k===1?"NEW BEST!":"GAME OVER");
- oled.setTextSize(1);oled.setCursor(0,20);oled.print("SCORE");oled.setTextSize(3);oled.setCursor(0,31);oled.print(score);
+ oled.setTextSize(1);oled.setCursor(0,20);oled.print("SCORE");oled.setTextSize(3);oled.setCursor(0,31);oled.print(p.score);
  oled.setTextSize(1);oled.setCursor(84,22);oled.print("BEST");oled.setTextSize(2);oled.setCursor(84,33);oled.print(highScore);
+ oled.setTextSize(1);oled.setCursor(0,56);oled.print("HIT "+accuracy(p)+"%  STREAK "+p.bestStreak);oled.flush()}
+function oledVersus(w){
+ oled.clear();oled.setTextSize(2);oled.setCursor(0,0);oled.print(w<0?"DRAW!":w===0?"P1 WINS!":"P2 WINS!");
+ oled.setTextSize(1);oled.setCursor(0,22);oled.print("P1");oled.setCursor(116,22);oled.print("P2");
+ oled.setTextSize(3);oled.setCursor(0,31);oled.print(pr[0].score);oled.setCursor(128-digits(pr[1].score)*18,31);oled.print(pr[1].score);
  oled.setTextSize(1);oled.setCursor(0,56);oled.print("Press button to play");oled.flush()}
 
 /* ---- effect player ---- */
 function startFx(style,color,blinks,ms,center,maxDur,next){
  let dur=2*ms*blinks;if(dur>maxDur)dur=maxDur;if(dur===0)return false;
  fx={style,color:rgb(color),halfMs:ms,dur,start:now(),center};mode=next;return true}
+
+/* ---- leaderboard (EEPROM on the device, this browser here) ---- */
+function lbQualifies(sc){if(sc<=0)return -1;for(let i=0;i<LB_COUNT;i++)if(!lb[i]||sc>lb[i].s)return i;return -1}
+function recordScore(p,name){
+ const r=lbQualifies(pr[p].score);if(r<0)return;
+ lb.splice(r,0,{n:bot?"BOT":name,s:pr[p].score,a:accuracy(pr[p]),k:pr[p].bestStreak});lb.length=Math.min(lb.length,LB_COUNT);
+ store("lb",lb);lbPending=bot?-1:r}
+function saveLastRound(w){lastRound={players:cfg.playerMode,winner:w,p:[{...pr[0]},{...pr[1]}]};renderScores()}
 
 /* ---- game ---- */
 function generateTarget(){
@@ -376,35 +446,54 @@ function drawGame(){
  let tc=rgb(cfg.cTarget);if(cfg.targetPulse)tc=nscale(tc,Math.floor(beatsin8(70,90,255)));
  set(targetPosition%n,tc);set(cursorPosition%n,cur);showLeds();lastDrawMs=now()}
 function startGame(){
- score=0;cursorPosition=0;startTestOnly=false;dirStep=cfg.dirMode===1?-1:1;generateTarget();
- soundPlay(cfg.sndStart);oledMessage("TARGET","GET READY!","Lock it in!");mode="starting";modeStart=now();log("START  round="+cfg.roundSeconds+"s speed="+cfg.speedDelay+"ms","e")}
+ if(!isTurns()||turn===0)pr=[newRound(),newRound()];else pr[1]=newRound();
+ cursorPosition=0;startTestOnly=false;lbPending=-1;dirStep=cfg.dirMode===1?-1:1;generateTarget();
+ soundPlay(cfg.sndStart);
+ if(isTurns())oledMessage(turn?"PLAYER 2":"PLAYER 1","GET READY!","Lock it in!");
+ else if(isDuel())oledMessage("DUEL","GET READY!","First to lock it wins");
+ else oledMessage("TARGET","GET READY!","Lock it in!");
+ mode="starting";modeStart=now();log("START  "+PLAYER_NAMES[cfg.playerMode]+(isTurns()?" P"+(turn+1):"")+"  round="+cfg.roundSeconds+"s speed="+cfg.speedDelay+"ms","e")}
 function beginPlaying(){const t=now();mode="playing";lastMoveTime=t;roundEndMs=t+cfg.roundSeconds*1000;lastTickSec=-1;drawGame();updateOLED()}
 function finishEnd(){mode="idle";clearLEDs()}
-function endGame(kind){
- const newBest=score>highScore;if(kind===0&&newBest)kind=1;
- if(newBest){highScore=score;store("best",highScore)}
- endKind=kind;oledResult(kind);
- log(kind===0?"GAME OVER  score="+score:kind===1?"NEW BEST  score="+score:"YOU WIN  score="+score,kind?"c":"x");
- if(kind===0){soundPlay(cfg.sndOver);if(!startFx(cfg.overStyle,cfg.cOver,cfg.overBlinks,cfg.overMs,cursorPosition,15000,"ending"))finishEnd()}
- else{soundPlay(cfg.sndWin);if(!startFx(cfg.winStyle,cfg.cWin,cfg.winBlinks,cfg.winMs,cursorPosition,15000,"ending"))finishEnd()}}
-function abortGame(){soundStop();mode="idle";clearLEDs()}
-function judgePress(){
- const hit=circDist(cursorPosition,targetPosition)<=cfg.hitWindow,center=cursorPosition;
+function playEnd(celebrate){
+ if(celebrate){soundPlay(cfg.sndWin);if(!startFx(cfg.winStyle,cfg.cWin,cfg.winBlinks,cfg.winMs,cursorPosition,15000,"ending"))finishEnd()}
+ else{soundPlay(cfg.sndOver);if(!startFx(cfg.overStyle,cfg.cOver,cfg.overBlinks,cfg.overMs,cursorPosition,15000,"ending"))finishEnd()}}
+const whoWins=()=>pr[0].score>pr[1].score?0:pr[1].score>pr[0].score?1:-1;
+function endGame(kind,winner){
+ if(isDuel()){
+  if(kind!==2)winner=whoWins();
+  saveLastRound(winner);oledVersus(winner);log(winner<0?"DRAW  "+pr[0].score+"-"+pr[1].score:"P"+(winner+1)+" WINS  "+pr[0].score+"-"+pr[1].score,"c");
+  playEnd(winner>=0);return}
+ const p=activePlayer(),newBest=pr[p].score>highScore;
+ if(newBest){highScore=pr[p].score;store("best",highScore)}
+ recordScore(p,isTurns()?(p?"P2":"P1"):"---");
+ if(isTurns()&&turn===0){saveLastRound(-1);turn=1;oledIdle();log("P1 DONE  score="+pr[0].score+"  player 2 is up","e");playEnd(false);askName();return}
+ if(isTurns()){const w=whoWins();saveLastRound(w);turn=0;oledVersus(w);log(w<0?"DRAW  "+pr[0].score+"-"+pr[1].score:"P"+(w+1)+" WINS  "+pr[0].score+"-"+pr[1].score,"c");playEnd(w>=0);askName();return}
+ if(kind===0&&newBest)kind=1;
+ endKind=kind;saveLastRound(-1);oledResult(kind);
+ const s=pr[0];log((kind===0?"GAME OVER":kind===1?"NEW BEST":"YOU WIN")+"  score="+s.score+"  hit "+accuracy(s)+"%  streak "+s.bestStreak+"  early/late "+s.early+"/"+s.late,kind?"c":"x");
+ playEnd(kind!==0);askName()}
+function abortGame(){soundStop();turn=0;mode="idle";clearLEDs()}
+function judgePress(p){
+ const me=pr[p],off=signedOffset(),hit=Math.abs(off)<=cfg.hitWindow,center=cursorPosition,who=isDuel()?"P"+(p+1)+" ":"";
  if(hit){
-  const old=level();score+=cfg.hitPoints;if(cfg.timeBonus)roundEndMs+=cfg.timeBonus*1000;
-  log("HIT   led="+(cursorPosition+1)+" score="+score,"c");
-  if(cfg.winScore&&score>=cfg.winScore){endGame(2);return}
+  const old=level();me.score+=cfg.hitPoints*comboMult(p);me.hits++;me.streak=Math.min(255,me.streak+1);if(me.streak>me.bestStreak)me.bestStreak=me.streak;
+  if(cfg.timeBonus)roundEndMs+=cfg.timeBonus*1000;
+  log(who+"HIT   led="+(cursorPosition+1)+" score="+me.score+(comboMult(p)>1?" x"+comboMult(p):""),"c");
+  if(cfg.winScore&&me.score>=cfg.winScore){endGame(2,p);return}
   if(cfg.dirMode===2)dirStep=-dirStep;else if(cfg.dirMode===3)dirStep=rnd(2)?1:-1;
   soundPlay(level()>old?cfg.sndLevel:cfg.sndHit);generateTarget();
-  if(!startFx(cfg.hitStyle,cfg.cHit,cfg.hitBlinks,cfg.hitMs,center,2000,"fx"))drawGame();
+  if(!startFx(cfg.hitStyle,isDuel()&&p===1?cfg.cP2:cfg.cHit,cfg.hitBlinks,cfg.hitMs,center,2000,"fx"))drawGame();
  }else{
-  score=Math.max(0,score-cfg.missPenalty);
+  me.score=Math.max(0,me.score-cfg.missPenalty);me.misses++;me.streak=0;if(off<0)me.early++;else me.late++;
   if(cfg.timePenalty){const cut=cfg.timePenalty*1000;roundEndMs=timeLeftMs()>cut?roundEndMs-cut:now()}
-  log("MISS  led="+(cursorPosition+1)+" target="+(targetPosition+1)+" score="+score,"x");
+  log(who+"MISS  led="+(cursorPosition+1)+" target="+(targetPosition+1)+(off<0?" (early)":" (late)")+" score="+me.score,"x");
   soundPlay(cfg.sndMiss);generateTarget();
   if(!startFx(cfg.missStyle,cfg.cMiss,cfg.missBlinks,cfg.missMs,center,2000,"fx"))drawGame()}
  updateOLED()}
-function onPress(){if(mode==="idle")startGame();else if(mode==="playing")judgePress()}
+function onPress(button){
+ if(button===1&&!isDuel())return;
+ if(mode==="idle")startGame();else if(mode==="playing")judgePress(isDuel()?button:activePlayer())}
 
 /* ---- per-mode ticks ---- */
 let lastIdle=0;
@@ -436,13 +525,14 @@ function tickFx(){
 
 /* ---------------- autopilot (browser-only helper) ---------------- */
 let bot=false,botSkill=.85,botAim=-1,botSeq=-1,botStartAt=0;
+// In a duel the bot is player 2, so you can play player 1 against it.
 function botTick(){
- if(!bot)return;const t=now();
- if(mode==="idle"){if(!botStartAt)botStartAt=t+1200;if(t>=botStartAt){botStartAt=0;onPress()}return}
+ if(!bot)return;const t=now(),me=isDuel()?1:0;
+ if(mode==="idle"){if(!botStartAt)botStartAt=t+1200;if(t>=botStartAt){botStartAt=0;onPress(0)}return}
  if(mode!=="playing")return;
  if(botSeq!==targetSeq){botSeq=targetSeq;const n=cfg.ledCount;
   botAim=Math.random()<botSkill?targetPosition:(targetPosition+(rnd(2)?1:-1)*(1+rnd(3))+n)%n}
- if(cursorPosition===botAim&&botAim>=0){botAim=-1;onPress()}}
+ if(cursorPosition===botAim&&botAim>=0){botAim=-1;onPress(me)}}
 
 /* ---------------- main loop ---------------- */
 function loop(){
@@ -454,11 +544,16 @@ function loop(){
 let lastHud="";
 function hud(){
  const live=mode==="playing"||mode==="fx",left=live?Math.ceil(timeLeftMs()/1000):cfg.roundSeconds;
- const sig=[mode,score,left,level(),highScore,getCurrentSpeed(),seqActive].join("|");
+ const sig=[mode,pr[0].score,pr[1].score,pr[0].streak,pr[1].streak,turn,cfg.playerMode,left,level(),highScore,getCurrentSpeed(),seqActive].join("|");
  $("#buzz").classList.toggle("on",seqActive&&soundOn);
  if(sig===lastHud)return;lastHud=sig;
  const m=$("#chipMode");m.textContent=mode;m.className="chip "+mode;
- $("#sScore").textContent=score;$("#sTime").textContent=left;$("#sLevel").textContent=level();$("#sBest").textContent=highScore;
+ $("#btn2").classList.toggle("show",isDuel());
+ if(isDuel()){$("#lScore").textContent="P1";$("#sScore").textContent=pr[0].score;$("#lBest").textContent="P2";$("#sBest").textContent=pr[1].score}
+ else{$("#lScore").textContent=isTurns()?"P"+(turn+1)+" score":"Score";$("#sScore").textContent=pr[activePlayer()].score;$("#lBest").textContent="Best";$("#sBest").textContent=highScore}
+ const mu=isDuel()?Math.max(comboMult(0),comboMult(1)):comboMult(activePlayer()),cc=$("#chipCombo");
+ cc.style.display=live&&mu>1?"inline-block":"none";cc.textContent="x"+mu+" combo";
+ $("#sTime").textContent=left;$("#sLevel").textContent=level();
  $("#chipSpeed").textContent=getCurrentSpeed()+" ms";
  $("#tbar").style.width=(live?Math.min(100,100*timeLeftMs()/(cfg.roundSeconds*1000)):100)+"%"}
 
@@ -474,8 +569,10 @@ const TABS={
 Game:[["h","Round"],["range","roundSeconds","Round time","s"],["range","winScore","Win when score reaches (0 = off)",""],["range","timeBonus","Time bonus per hit","s"],["range","timePenalty","Time penalty per miss","s"],
 ["h","Speed"],["range","speedDelay","Start speed (ms per step, lower = faster)","ms"],["range","minDelay","Fastest speed","ms"],["range","speedStep","Speed-up per point","ms"],["range","pointsPerLevel","Points per level",""],
 ["h","Scoring"],["range","hitPoints","Points per hit",""],["range","missPenalty","Penalty per miss",""],["range","hitWindow","Hit window (+/- LEDs)",""],
-["h","Ring"],["range","ledCount","Number of LEDs",""],["range","brightness","Brightness",""],["select","dirMode","Direction","",DIR_NAMES]],
-Look:[["h","Running cursor"],["color","cCursor","Cursor colour"],["color","cTarget","Target colour"],["color","cBg","Background colour"],["range","tailLen","Comet tail length","LEDs"],["toggle","targetPulse","Pulsing target"],
+["h","Ring"],["range","ledCount","Number of LEDs",""],["range","brightness","Brightness",""],["select","dirMode","Direction","",DIR_NAMES],
+["h","Players"],["select","playerMode","Mode","",PLAYER_NAMES],["note","Duel: player 2 presses <kbd>L</kbd> or the blue button (Autopilot plays player 2). Turns: one button, one round each."],
+["range","comboEvery","Combo: multiplier +1 every N hits in a row (0 = off, max x4)",""]],
+Look:[["h","Running cursor"],["color","cCursor","Cursor colour"],["color","cTarget","Target colour"],["color","cBg","Background colour"],["range","tailLen","Comet tail length","LEDs"],["toggle","targetPulse","Pulsing target"],["color","cP2","Player 2 hit colour (duel)"],
 ["h","Start sweep"],["color","cStart","Sweep colour"],["range","startSweep","Sweep speed (0 = none)","ms/LED"],["test","start","&#9654; Test start sweep"],
 ["h","Idle / attract mode"],["select","idleMode","Animation","",IDLE_NAMES],["color","cIdle","Idle colour"],["range","idleSpeed","Chase step","ms"]],
 Effects:[["h","On every HIT","hit"],["select","hitStyle","Style","",STYLE_NAMES],["range","hitBlinks","Blink count",""],["range","hitMs","Blink time","ms"],["color","cHit","Colour"],
@@ -485,12 +582,16 @@ Effects:[["h","On every HIT","hit"],["select","hitStyle","Style","",STYLE_NAMES]
 ["note","Effect length = blinks x 2 x blink time (hit/miss capped at 2 s, game over / win at 15 s). Blinks = 0 switches an effect off."]],
 Sound:[["toggle","buzzer","Buzzer on (device setting)"],["h","Sound effects"],["snd","sndStart","Round start"],["snd","sndHit","Hit"],["snd","sndLevel","Level up"],["snd","sndMiss","Miss"],["snd","sndOver","Game over"],["snd","sndWin","Win / new best"],
 ["h","Countdown"],["snd","sndTick","Tick sound"],["range","tickSec","Tick during last N seconds (0 = off)","s"],["toggle","stepClick","Click on every cursor step"]],
+Scores:[["scores"]],
 Presets:[["presets"]]};
 function mk(t,c,h){const e=document.createElement(t);if(c)e.className=c;if(h!==undefined)e.innerHTML=h;return e}
 function toast(t){const e=$("#toast");e.textContent=t;e.classList.add("show");clearTimeout(toast.t);toast.t=setTimeout(()=>e.classList.remove("show"),1800)}
+let lastPlayers=null;
 function changed(k){
  clampCfg();cfg.ledCount=Math.max(1,cfg.ledCount);cursorPosition%=cfg.ledCount;targetPosition%=cfg.ledCount;
  if(cfg.dirMode<2)dirStep=cfg.dirMode===1?-1:1;
+ if(lastPlayers!==null&&lastPlayers!==cfg.playerMode){if(mode!=="idle")abortGame();turn=0;pr=[newRound(),newRound()];oledIdle()}
+ lastPlayers=cfg.playerMode;
  if(mode==="playing"){drawGame();updateOLED()}
  store("cfg",cfg);if(k)log("SET   "+k+"="+(COLORS.includes(k)?hex6(cfg[k]):cfg[k]))}
 function testFx(kind){
@@ -530,16 +631,49 @@ function presetsTab(box){
  const f=mk("input");f.type="file";f.accept=".json";f.style.display="none";
  f.onchange=async()=>{try{const j=JSON.parse(await f.files[0].text());for(const k in j)if(k in cfg)cfg[k]=COLORS.includes(k)?unhex(j[k]):+j[k];changed();refresh();toast("Settings imported")}catch(e){toast("Bad file")}};
  const im=mk("button","sm ghost","Import settings");im.onclick=()=>f.click();
- const rb=mk("button","sm ghost","Reset high score");rb.onclick=()=>{highScore=0;store("best",0);lastHud="";if(mode==="idle")oledIdle();toast("High score reset")};
+ const rb=mk("button","sm ghost","Reset scores");rb.onclick=()=>{highScore=0;store("best",0);lb=[];store("lb",lb);lbPending=-1;lastHud="";if(mode==="idle")oledIdle();toast("Scores reset")};
  const fr=mk("button","sm ghost","Factory reset");fr.onclick=()=>{cfg=defaults();changed();refresh();toast("Defaults restored")};
  [ex,im,rb,fr,f].forEach(e=>w.appendChild(e));box.appendChild(w)}
+function scoresTab(box){
+ box.appendChild(mk("div","h","Leaderboard (solo + turns, this browser)"));
+ const t=mk("table","lb");t.id="lbT";box.appendChild(t);
+ box.appendChild(mk("div","h","Last round"));box.appendChild(mk("div","note",'<span id="lastR">No round played yet.</span>'));
+ const w=mk("div");w.style.cssText="display:flex;gap:8px;margin-top:8px";
+ const cl=mk("button","sm ghost","Clear leaderboard");cl.onclick=()=>{lb=[];store("lb",lb);lbPending=-1;renderScores();toast("Leaderboard cleared")};
+ w.appendChild(cl);box.appendChild(w)}
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+function renderScores(){
+ const t=$("#lbT");if(!t)return;
+ let h="<tr><th>#</th><th>Name</th><th>Score</th><th>Hit %</th><th>Streak</th></tr>";
+ if(!lb.length)h+='<tr><td></td><td colspan="4" style="color:var(--dim)">No scores yet. Play a round!</td></tr>';
+ lb.forEach((e,i)=>{h+="<tr"+(i===lbPending?' class="me"':"")+"><td>"+(i+1)+"</td><td>"+esc(e.n)+"</td><td><b>"+e.s+"</b></td><td>"+e.a+"%</td><td>"+e.k+"</td></tr>"});
+ t.innerHTML=h;
+ const R=lastRound,el=$("#lastR");if(!R||!el)return;
+ const pl=p=>"score <b>"+p.score+"</b> &middot; "+p.hits+" hits / "+p.misses+" misses ("+accuracy(p)+"%) &middot; best streak "+p.bestStreak+
+  (p.misses?" &middot; misses: "+p.early+" early, "+p.late+" late"+(p.early>p.late*2?" <i>(wait a touch longer)</i>":p.late>p.early*2?" <i>(press a touch sooner)</i>":""):"");
+ if(R.players===0)el.innerHTML=pl(R.p[0]);
+ else if(R.players===2&&R.winner<0&&!R.p[1].hits&&!R.p[1].misses)el.innerHTML="Player 1: "+pl(R.p[0])+"<br>Player 2 is up next.";
+ else el.innerHTML=(R.winner<0?"<b>Draw</b>":"<b>Player "+(R.winner+1)+" wins</b>")+"<br>P1: "+pl(R.p[0])+"<br>P2: "+pl(R.p[1])}
+function askName(){
+ renderScores();if(lbPending<0)return;
+ $("#mTxt").textContent="Rank #"+(lbPending+1)+" with "+lb[lbPending].s+" points. Enter your initials:";
+ const i=$("#mName");i.value="";$("#modal").classList.add("show");setTimeout(()=>i.focus(),50)}
+function nameSave(){
+ const v=$("#mName").value.toUpperCase().replace(/[^A-Z0-9]/g,"").slice(0,3);if(!v){toast("Type 1 to 3 letters");return}
+ if(lbPending>=0&&lb[lbPending]){lb[lbPending].n=v;store("lb",lb)}lbPending=-1;closeName();toast("Saved!")}
+// hand the keyboard back to the game button
+function closeName(){$("#modal").classList.remove("show");$("#mName").blur();renderScores()}
+$("#mSave").onclick=nameSave;$("#mSkip").onclick=()=>{lbPending=-1;closeName()};
+$("#mName").addEventListener("keydown",e=>{e.stopPropagation();if(e.key==="Enter")nameSave()});
+
 let cur="Game";
 function build(){
  const nav=$("#nav"),tabs=$("#tabs");nav.innerHTML="";tabs.innerHTML="";
  Object.keys(TABS).forEach(n=>{
   const b=mk("button",n===cur?"on":"",n);b.onclick=()=>{cur=n;build()};nav.appendChild(b);
   const c=mk("div","tab"+(n===cur?" on":""));
-  TABS[n].forEach(sp=>sp[0]==="presets"?presetsTab(c):c.appendChild(control(sp)));tabs.appendChild(c)});
+  TABS[n].forEach(sp=>sp[0]==="presets"?presetsTab(c):sp[0]==="scores"?scoresTab(c):c.appendChild(control(sp)));tabs.appendChild(c)});
+ renderScores();
  refresh()}
 function refresh(){
  document.querySelectorAll("[data-k]").forEach(e=>{const v=cfg[e.dataset.k];if(v===undefined)return;
@@ -549,15 +683,19 @@ function refresh(){
 
 /* ---------------- wiring ---------------- */
 const btn=$("#btn");
-function press(){audioInit();if(audio&&audio.state==="suspended")audio.resume();onPress()}
-btn.addEventListener("pointerdown",e=>{e.preventDefault();btn.classList.add("down");press()});
-["pointerup","pointerleave","pointercancel"].forEach(ev=>btn.addEventListener(ev,()=>btn.classList.remove("down")));
+function press(b){audioInit();if(audio&&audio.state==="suspended")audio.resume();onPress(b||0)}
+const btn2=$("#btn2");
+btn.addEventListener("pointerdown",e=>{e.preventDefault();btn.classList.add("down");press(0)});
+btn2.addEventListener("pointerdown",e=>{e.preventDefault();btn2.classList.add("down");press(1)});
+["pointerup","pointerleave","pointercancel"].forEach(ev=>{btn.addEventListener(ev,()=>btn.classList.remove("down"));btn2.addEventListener(ev,()=>btn2.classList.remove("down"))});
 addEventListener("keydown",e=>{
- if(e.repeat)return;const tag=(e.target.tagName||"").toLowerCase();
- if((e.code==="Space"||e.code==="Enter")&&tag!=="input"&&tag!=="select"&&tag!=="button"&&tag!=="textarea"){e.preventDefault();btn.classList.add("down");press()}});
-addEventListener("keyup",e=>{if(e.code==="Space"||e.code==="Enter")btn.classList.remove("down")});
-$("#bStart").onclick=()=>{audioInit();if(mode==="idle"||mode==="playing"||mode==="fx")startGame()};
-$("#bStop").onclick=()=>{if(mode!=="idle"){abortGame();oledMessage("STOPPED","Press button","or use the web");log("STOP","x")}};
+ if(e.repeat||$("#modal").classList.contains("show"))return;const tag=(e.target.tagName||"").toLowerCase();
+ if(tag==="input"||tag==="select"||tag==="button"||tag==="textarea")return;
+ if(e.code==="Space"||e.code==="Enter"){e.preventDefault();btn.classList.add("down");press(0)}
+ else if(e.code==="KeyL"){e.preventDefault();btn2.classList.add("down");press(1)}});
+addEventListener("keyup",e=>{if(e.code==="Space"||e.code==="Enter")btn.classList.remove("down");if(e.code==="KeyL")btn2.classList.remove("down")});
+$("#bStart").onclick=()=>{audioInit();if(mode==="idle"||mode==="playing"||mode==="fx"){if(mode!=="idle")turn=0;startGame()}};
+$("#bStop").onclick=()=>{if(mode!=="idle"||turn){abortGame();oledMessage("STOPPED","Press button","or use the web");log("STOP","x")}};
 $("#bBot").onclick=e=>{bot=!bot;e.currentTarget.classList.toggle("on",bot);$("#botRow").classList.toggle("show",bot);log(bot?"AUTOPILOT on":"AUTOPILOT off","e");if(bot)audioInit()};
 $("#botSkill").oninput=e=>{botSkill=e.target.value/100;$("#botVal").textContent=e.target.value+"%"};
 $("#bSnd").onclick=e=>{audioInit();soundOn=!soundOn;e.currentTarget.classList.toggle("on",soundOn);e.currentTarget.innerHTML=soundOn?"&#128266; Sound":"&#128264; Muted";if(!soundOn)noTone()};
@@ -565,8 +703,9 @@ $("#clr").onclick=()=>{logEl.innerHTML=""};
 
 /* ---------------- boot ---------------- */
 const saved=load("cfg",null);if(saved){cfg=Object.assign(defaults(),saved);clampCfg()}
+lastPlayers=cfg.playerMode;
 build();
-log("CYCLONE TARGET LOCK v2","c");log("SSID: CycloneGame  IP: 192.168.4.1");log("Press the big button (or Space) to start","e");
+log("CYCLONE TARGET LOCK v2","c");log("SSID: CycloneGame-XXXX  IP: 192.168.4.1  http://cyclone.local");log("Press the big button (or Space) to start","e");
 generateTarget();oledIdle();
 const q=new URLSearchParams(location.search);
 if(q.get("demo")){soundOn=false;$("#bSnd").classList.remove("on");bot=true;botSkill=.9;$("#bBot").classList.add("on");$("#botRow").classList.add("show");

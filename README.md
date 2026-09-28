@@ -10,6 +10,8 @@
 ![Buzzer](https://img.shields.io/badge/Sound-passive%20buzzer-ffb400?style=for-the-badge)
 ![PlatformIO](https://img.shields.io/badge/PlatformIO-ready-f5822a?style=for-the-badge&logo=platformio&logoColor=white)
 ![Arduino IDE](https://img.shields.io/badge/Arduino%20IDE-ready-00979d?style=for-the-badge&logo=arduino&logoColor=white)
+[![Build](https://github.com/Am4l-babu/Cyclone-v2/actions/workflows/build.yml/badge.svg)](https://github.com/Am4l-babu/Cyclone-v2/actions/workflows/build.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 **A cursor spins. A target hides in the ring. You get one button and 60 seconds.**
 
@@ -29,13 +31,13 @@
 
 <div align="center">
 
-<a href="https://htmlpreview.github.io/?https://github.com/Am4l-babu/Cyclone-v2/blob/main/docs/simulator.html">
+<a href="https://am4l-babu.github.io/Cyclone-v2/simulator.html">
   <img src="docs/simulator-preview.png" alt="Cyclone Target Lock browser simulator" width="720">
 </a>
 
-### [▶️ &nbsp;PLAY THE SIMULATOR](https://htmlpreview.github.io/?https://github.com/Am4l-babu/Cyclone-v2/blob/main/docs/simulator.html)
+### [▶️ &nbsp;PLAY THE SIMULATOR](https://am4l-babu.github.io/Cyclone-v2/simulator.html)
 
-<sub>Space / Enter or tap the big button · sound on by default · or open <a href="docs/simulator.html"><code>docs/simulator.html</code></a> locally, no install needed</sub>
+<sub>Space / Enter or tap the big button · duel: player 2 is L · sound on by default · or open <a href="docs/simulator.html"><code>docs/simulator.html</code></a> locally, no install needed</sub>
 
 </div>
 
@@ -48,7 +50,8 @@ Try the game **before you build a single wire**. The simulator is a port of the 
 | 📟 **OLED emulation** | pixel-accurate 128×64 screen using the classic 5×7 font: score, time bar, best, result |
 | 🔊 **Buzzer** | all 11 sounds through Web Audio, plus a mute button |
 | 🎛 **Full control panel** | the same Game / Look / Effects / Sound / Presets settings as the real web page, with **▶ Test** buttons |
-| 🤖 **Autopilot** | a bot with an adjustable skill slider plays for you, great for previewing a setup |
+| 🤖 **Autopilot** | a bot with an adjustable skill slider plays for you (in a duel it plays player 2, so you can take it on) |
+| 👥 **Duel, turns, combos** | the same player modes, combo multiplier, leaderboard and hit / early / late stats as the device |
 | 📜 **Serial monitor** | live log of starts, hits, misses and setting changes |
 | 💾 **Presets and export** | 7 built-in presets, 3 save slots and JSON export / import, kept in your browser |
 
@@ -75,7 +78,13 @@ Version 2 adds a full **WiFi control panel** on your phone: change the round tim
 | 🔢 **Blink counts + timing** | separate blink count and speed for hit, miss, game over and win |
 | 🔊 **11 buzzer sounds** | pick a sound for round start, hit, level up, miss, game over, win, countdown tick |
 | 💾 **Presets** | 7 built-in looks + 3 save slots stored on the device |
+| 👥 **Two players** | **Duel**: a second button, same cursor, first to lock it scores. **Turns**: one button, one round each |
+| 🔥 **Combos** | optional multiplier: every N hits in a row adds ×1, up to ×4 |
+| 🏆 **Leaderboard + stats** | top 5 with initials, hit %, best streak and whether you miss early or late |
 | 🧠 **Smart extras** | hit window, time bonus / penalty, win score, level-up, countdown ticks, auto-save, export / import |
+| 📶 **Easy WiFi** | the panel opens by itself when you join, unique hotspot name, optional home WiFi + `cyclone.local` |
+| 🔐 **Admin PIN** | protects reset, reboot, WiFi settings and firmware updates |
+| ⬆️ **Wireless updates** | upload new firmware from the web page or PlatformIO, no USB cable |
 | 📟 **OLED scoreboard** | score, best, level, time bar, result screen |
 | 🕹 **Browser simulator** | play the whole game and tweak every setting without any hardware |
 
@@ -107,6 +116,25 @@ Version 2 adds a full **WiFi control panel** on your phone: change the round tim
 | *(new level)* | every 5 points | level-up sound |
 
 Hit / miss effects **pause the round clock**, so a long celebration never costs you time.
+
+The press counts **the instant the button closes**, on exactly the LED you saw, even at the fastest speed.
+
+<details>
+<summary><b>👥 Two players and combos</b></summary>
+
+<br>
+
+| Mode | How it works | Hardware |
+|---|---|---|
+| **Solo** | the classic game | one button |
+| **Duel** | both players watch the same cursor. Whoever presses on the target scores; a wrong press only costs the presser. Most points when time runs out (or first to the win score) wins | second button on **D3** (or just the NodeMCU's own **FLASH** button, which is the same pin) |
+| **Turns** | player 1 plays a full round, then the OLED hands over to player 2 with the score to beat | one button |
+
+**Combo** (Game tab, off by default): with *combo every 3*, hits 1–3 score ×1, hits 4–6 score ×2, and so on up to ×4. A miss resets it. The OLED and the web page show the current multiplier.
+
+After every round the **Scores** tab shows hits, misses, hit %, best streak and how many misses were **early** (the cursor had not reached the target yet) or **late** (it had already passed), with a hint on which way to adjust.
+
+</details>
 
 <details>
 <summary><b>📈 The speed curve (default settings)</b></summary>
@@ -175,19 +203,46 @@ flowchart TD
 
 ## 📱 The web control panel
 
-1. Join the WiFi **`CycloneGame`** (password **`12345678`**).
-2. Open **http://192.168.4.1**.
+1. Join the WiFi **`CycloneGame-XXXX`** (password **`12345678`**). `XXXX` is unique to your board, so two games in one room don't clash. The OLED shows the name while it starts.
+2. The control panel **opens by itself** (like hotel WiFi). If it doesn't, open **http://192.168.4.1** or **http://cyclone.local**.
 
-The page shows a live ring preview (it simulates *your* current colours, tail and speed), the round clock, score, best and level, plus **START / STOP / RESET**. Every change is applied **instantly** and **auto-saved** to the device a moment after your last edit (never in the middle of a round).
+The page shows a live ring preview (it simulates *your* current colours, tail and speed), the round clock, score, best and level, plus **START / STOP / RESET**. Every change is applied **instantly** and **auto-saved** to the device a moment after your last edit (never in the middle of a round). The device **pushes** updates over a WebSocket, so the score changes the moment you press, and a change made on one phone shows up on every other open panel.
 
 | Tab | What you can change |
 |---|---|
-| **Game** | round time · win score · time bonus per hit / penalty per miss · start speed, fastest speed, speed-up per point · points per level · points per hit, penalty per miss · hit window · LED count · brightness · direction |
-| **Look** | cursor / target / background colours · comet tail length · pulsing target · start-sweep colour and speed · idle animation (Off / Chase / Rainbow / Breathe / Sparkle) |
+| **Game** | round time · win score · time bonus per hit / penalty per miss · start speed, fastest speed, speed-up per point · points per level · points per hit, penalty per miss · hit window · LED count · brightness · direction · **player mode** · **combo** |
+| **Look** | cursor / target / background colours · comet tail length · pulsing target · player 2 colour · start-sweep colour and speed · idle animation (Off / Chase / Rainbow / Breathe / Sparkle) |
 | **Effects** | for **hit**, **miss**, **game over** and **win**: style, **blink count**, blink time, colour, and a **▶ Test** button |
 | **Sound** | buzzer on/off · a sound for each event with **▶ preview** · countdown ticks in the last N seconds · step click |
+| **Scores** | top-5 leaderboard (initials, score, hit %, streak) and the last round's stats |
 | **Presets** | 7 built-in presets and 3 personal save slots |
-| **System** | device info · export / import settings as a file · reset high score · factory reset · reboot |
+| **System** | device info · export / import settings · reset scores · factory reset · reboot · **WiFi & security** · **firmware update** |
+
+<details>
+<summary><b>📶 WiFi, admin PIN and wireless updates</b></summary>
+
+<br>
+
+Everything is on the **System** tab.
+
+| Setting | What it does |
+|---|---|
+| **Hotspot password** | change the default `12345678` (8–32 characters) |
+| **Home WiFi** | the game also joins your router, so you can reach it at `http://cyclone.local` (or the IP shown) from any device at home. The hotspot stays on either way |
+| **Device name** | the `name` in `http://name.local` and for PlatformIO uploads |
+| **Admin PIN** | 4–8 digits. Once set, *Reset scores*, *Factory reset*, *Reboot*, the WiFi settings and firmware uploads ask for it. Game settings stay open to everyone. Five wrong PINs lock it for a minute |
+
+Saving reboots the device. Presets, save slots and exported settings files never contain passwords.
+
+**Forgot the PIN or the hotspot password?** Hold the game button while you power on and keep holding for 3 s. The OLED confirms, the PIN is removed, the hotspot password goes back to `12345678` and the home WiFi is forgotten. Game settings and scores are kept.
+
+**Wireless firmware updates** keep your settings and scores:
+
+- **From the web page:** *System → Firmware update → Choose firmware .bin*. Use `.pio/build/game/firmware.bin` from PlatformIO, or *Sketch → Export Compiled Binary* in the Arduino IDE.
+- **From PlatformIO:** `pio run -e game -t upload --upload-port cyclone.local` (add `--upload-flags=--auth=YOURPIN` if you set a PIN). Your computer must be on the game's hotspot or the same home WiFi.
+- **From the Arduino IDE:** the board shows up under *Tools → Port → Network ports*.
+
+</details>
 
 <details>
 <summary><b>💥 Effect styles</b></summary>
@@ -252,6 +307,9 @@ Presets keep your LED count. **My presets** store *every* setting in one of 3 sl
 - **Smart targets** – a new target never appears on top of the cursor
 - **Power limiter** (1.5 A) so a big white flash can't brown-out a USB supply
 - **Auto-save**, **export / import** as JSON, **factory reset**
+- **Edge-triggered button** – the press is judged on the LED you saw, then bounce is ignored for 50 ms
+- **Captive portal**, **mDNS** (`cyclone.local`), **home WiFi**, **admin PIN**, **OTA updates**
+- **Duel / turns**, **combo multiplier**, **top-5 leaderboard**, **early / late stats**
 
 </details>
 
@@ -264,19 +322,27 @@ The web page is a thin client on top of a small JSON API:
 
 | Route | Purpose |
 |---|---|
-| `GET /api/state` | mode, score, best, level, time left |
-| `GET /api/settings` | every setting + limits + option lists |
+| `GET /api/state` | mode, score (`p` = both players), best, level, time left, combo, versions |
+| `GET /api/settings` | every setting + limits + option lists + network info (never passwords) |
+| `GET /api/scores` | leaderboard and the last round's stats |
+| `GET /api/name?n=ABC` | initials for the leaderboard entry that was just made |
 | `POST /api/set` | set any subset of settings, e.g. `roundSeconds=90&cCursor=%2300ffff` |
 | `GET /api/start` · `/api/stop` · `/api/reset` | game control |
 | `GET /api/preset?id=0..6` | apply a built-in preset |
 | `GET /api/slot?op=save\|load&i=0..2` | personal preset slots |
 | `GET /api/test?fx=hit\|miss\|over\|win\|start` | preview an effect (game must be idle) |
 | `GET /api/test?sound=0..11` | preview a sound |
-| `GET /api/resethigh` · `/api/factory` · `/api/reboot` | maintenance |
+| `POST /api/resethigh` · `/api/factory` · `/api/reboot` | maintenance 🔐 |
+| `POST /api/net` | `apPass`, `staSsid`, `staPass`, `host`, `newPin` (send only what changes), then reboots 🔐 |
+| `POST /update` | firmware upload (HTTP basic auth `admin` / PIN when a PIN is set) |
+| `ws://<ip>:81/` | WebSocket: the same JSON as `/api/state`, pushed on every change and once a second |
+
+🔐 = needs `pin=…` once an admin PIN is set (`401` with `{"error":"pin"}` otherwise).
 
 ```bash
 curl -X POST http://192.168.4.1/api/set -d "roundSeconds=90" -d "speedDelay=60"
 curl http://192.168.4.1/api/start
+curl -X POST http://192.168.4.1/api/reboot -d "pin=1234"
 ```
 
 </details>
@@ -290,7 +356,7 @@ curl http://192.168.4.1/api/start
 | 1 | **ESP8266 NodeMCU** (ESP-12E) | any board selectable as *NodeMCU 1.0* |
 | 2 | **24 × WS2812B** ring / strip | 5 V, data-in on the first LED |
 | 3 | **SSD1306 OLED 128×64, I²C** | address `0x3C` (some are `0x3D`) |
-| 4 | **Push button** | momentary, normally-open |
+| 4 | **Push button** | momentary, normally-open (a second one for duel mode is optional) |
 | 5 | **Passive buzzer** | an *active* buzzer works but only makes one fixed tone |
 | 6 | **5 V supply ≥ 2 A** | recommended for the LEDs (USB is fine at low brightness) |
 | 7 | Wires, breadboard | + optional 330 Ω resistor and 1000 µF capacitor for the LEDs |
@@ -306,6 +372,8 @@ curl http://192.168.4.1/api/start
 | | GND | GND *(shared!)* | – |
 | **Push button** | leg 1 | **D5** | GPIO14 |
 | | leg 2 | GND | – |
+| **Player 2 button** *(optional, duel)* | leg 1 | **D3** | GPIO0 |
+| | leg 2 | GND | – |
 | **Buzzer** | + | **D7** | GPIO13 |
 | | − | GND | – |
 | **OLED** | SDA | **D2** | GPIO4 |
@@ -318,6 +386,7 @@ flowchart LR
     subgraph NodeMCU[ESP8266 NodeMCU]
         D6[D6 · GPIO12]
         D5[D5 · GPIO14]
+        D3[D3 · GPIO0]
         D7[D7 · GPIO13]
         D2[D2 · GPIO4]
         D1[D1 · GPIO5]
@@ -330,6 +399,8 @@ flowchart LR
     GND --- LED
     D5 --- BTN[Push button]
     BTN --- GND
+    D3 -. duel .- BTN2[Player 2 button]
+    BTN2 -.- GND
     D7 --- BZ[Buzzer +]
     BZ --- GND
     D2 -- SDA --> OLED[SSD1306 OLED]
@@ -347,7 +418,8 @@ flowchart LR
 - **Always join the grounds** (supply GND ↔ NodeMCU GND ↔ LED GND).
 - Add a **1000 µF capacitor** across the ring's 5 V/GND and a **~330 Ω resistor** in the data line.
 - WS2812B *usually* accepts the ESP8266's 3.3 V data signal; if the first LED misbehaves add a level shifter.
-- The button uses the internal pull-up: no external resistor needed.
+- The buttons use the internal pull-up: no external resistor needed.
+- **D3 is GPIO0**, the pin the NodeMCU's **FLASH** button uses. Don't hold the player 2 button while powering on, or the board starts in upload mode. It also means you can test duel mode with the on-board FLASH button.
 
 </details>
 
@@ -372,7 +444,7 @@ Pick your weapon. Both use the **same game code**.
    http://arduino.esp8266.com/stable/package_esp8266com_index.json
    ```
    Then *Tools → Board → Boards Manager…*, search **esp8266** and install.
-2. **Install the libraries** (*Sketch → Include Library → Manage Libraries…*): `FastLED`, `Adafruit GFX Library`, `Adafruit SSD1306` (accept `Adafruit BusIO`).
+2. **Install the libraries** (*Sketch → Include Library → Manage Libraries…*): `FastLED`, `Adafruit GFX Library`, `Adafruit SSD1306` (accept `Adafruit BusIO`) and `WebSockets` by Markus Sattler.
 3. **Open the sketch:** *File → Open…* → [`arduino/CycloneTargetLock/CycloneTargetLock.ino`](arduino/CycloneTargetLock/CycloneTargetLock.ino). The other files in that folder (`settings`, `sounds`, `effects`, `webui`) open as tabs automatically.
 4. **Board:** *Tools → Board → esp8266 → **NodeMCU 1.0 (ESP-12E Module)***. Upload speed `921600` (or `115200` if uploads fail).
 5. **Port**, then **Upload ➜**.
@@ -499,11 +571,16 @@ cyclone_game_2/
 ├── hardware_tests/                    ← 🧪 standalone test sketches (both toolchains)
 │   ├── ButtonTest/  RgbLedTest/  OledTest/  BuzzerTest/
 ├── tools/
-│   └── sync_arduino.py                copies src/ → arduino/CycloneTargetLock/
-├── docs/
+│   └── sync_arduino.py                copies src/ → arduino/CycloneTargetLock/ (--check: report drift)
+├── docs/                              ← published to GitHub Pages
+│   ├── index.html                     redirects to the simulator
 │   ├── simulator.html                 🕹 playable browser version of the game
 │   ├── simulator-preview.png
 │   └── banner.svg                     animated README banner
+├── .github/workflows/
+│   ├── build.yml                      CI: builds all 5 environments + checks the Arduino copy
+│   └── pages.yml                      publishes docs/ to GitHub Pages
+├── LICENSE                            MIT
 └── .vscode/extensions.json            recommends the PlatformIO extension
 ```
 
@@ -515,13 +592,16 @@ python tools/sync_arduino.py
 
 to refresh the Arduino IDE sketch (`main.cpp` becomes `CycloneTargetLock.ino`). Only edit `src/`, never the generated folder. The test sketches exist once in `hardware_tests/`.
 
+Every push and pull request is built by **GitHub Actions** (all five PlatformIO environments), which also fails if you forgot the sync step (`python tools/sync_arduino.py --check`). The `game` build's `firmware.bin` is attached to each run, ready for a wireless update.
+
 ### 🧩 How the firmware is organised
 
 | Piece | Idea |
 |---|---|
 | **State machine** | `IDLE → STARTING → PLAYING ⇄ FX → ENDING → IDLE`. No `delay()` in the game, so the web page, buzzer and LEDs never freeze each other. |
 | **Field table** | every setting is one row in `settings.cpp`. The web API, limits, JSON and the EEPROM clamp are all generated from that table, so adding a setting is one line there + one line in the web page. |
-| **Settings storage** | `EEPROM`: high score at address 0, live settings and 3 user slots after it. A layout version discards incompatible data after firmware changes. |
+| **Settings storage** | `EEPROM`: high score at address 0, live settings and 3 user slots from 16, WiFi / PIN at 1024, leaderboard at 1280. A layout version guards against incompatible data; settings saved by v2.0 are migrated, not lost. |
+| **Network** | access point (+ optional home WiFi), a DNS server that answers every name with the game's own IP (captive portal), mDNS, ArduinoOTA, `/update`, and a WebSocket on port 81. |
 
 ---
 
@@ -558,7 +638,21 @@ Run `test_buzzer`. Check + → D7 and − → GND, and that the **Buzzer** switc
 <details>
 <summary><b>The web page shows "offline"</b></summary>
 
-Make sure your phone is still on `CycloneGame` (phones sometimes hop back to mobile data because the network has no internet: tell it to *stay connected*), then open `http://192.168.4.1` again. The ESP8266 is 2.4 GHz only.
+Make sure your phone is still on `CycloneGame-XXXX` (phones sometimes hop back to mobile data because the network has no internet: tell it to *stay connected*), then open `http://192.168.4.1` again. The ESP8266 is 2.4 GHz only. The panel reconnects by itself and falls back to polling if the live connection drops.
+
+</details>
+
+<details>
+<summary><b>I forgot the admin PIN / hotspot password</b></summary>
+
+Hold the game button while powering on, keep holding for 3 s until the OLED says **CLEARED**. The PIN is removed, the hotspot password is `12345678` again and the home WiFi is forgotten. Settings and scores are kept.
+
+</details>
+
+<details>
+<summary><b>`cyclone.local` doesn't open</b></summary>
+
+`.local` names need mDNS: it works on iPhone, Mac, Linux and Windows 10+, but some Android browsers don't support it. Use the IP instead (the OLED idle screen shows it, and so does the System tab).
 
 </details>
 
@@ -580,12 +674,13 @@ The button must go between **D5 and GND**. Run `test_button`; a floating wire ca
 
 ## 🗺 Ideas for next
 
-- [ ] Two-player duel mode (two buttons, first to lock wins the point)
-- [ ] Captive portal, so the control panel pops up as soon as you join the WiFi
-- [ ] Top-10 leaderboard with player names
+- [x] Two-player duel mode (two buttons, first to lock wins the point)
+- [x] Captive portal, so the control panel pops up as soon as you join the WiFi
+- [x] Leaderboard with player names
+- [x] Editable WiFi password, home WiFi and admin PIN on the System tab
+- [x] Wireless firmware updates
 - [ ] "Hold the lock" mode: keep the button down for a full second on the target
 - [ ] Rotary encoder to change difficulty without a phone
-- [ ] Editable WiFi name / password on the System tab
 - [ ] Battery pack + charger for a portable arcade box
 
 ---
@@ -610,7 +705,7 @@ Ideas and pull requests are welcome. Fork the repo, change the code in `src/`, r
 
 <div align="center">
 
-**Designed, built and written by [Am4l-babu](https://github.com/Am4l-babu)**
+**Designed, built and written by [Am4l-babu](https://github.com/Am4l-babu)** · [MIT License](LICENSE)
 
 Built with ⚡ ESP8266, 🌈 FastLED and a lot of blinking.
 
