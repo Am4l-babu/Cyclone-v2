@@ -2,8 +2,14 @@
 #include "sounds.h"
 
 #include <EEPROM.h>
+#include <stddef.h>
 
-Settings cfg;
+Settings    cfg;
+NetConfig   net;
+Leaderboard lb;
+
+#define NET_MAGIC  0x4E43
+#define LB_MAGIC   0x4C42
 
 // ============================================================
 // FIELD TABLE  (name used by the web page  ->  variable + limits)
@@ -59,6 +65,11 @@ static const Field FIELDS[] = {
   N8(sndTick, 0, SOUND_COUNT - 1),
   N8(tickSec, 0, 30),
   N8(stepClick, 0, 1),
+
+  // players + combo
+  N8(playerMode, 0, PLAYER_MODES - 1),
+  N8(comboEvery, 0, 10),
+  CLR(cP2),
 };
 
 static const size_t FIELD_COUNT = sizeof(FIELDS) / sizeof(FIELDS[0]);
@@ -264,6 +275,11 @@ void settingsDefaults(Settings& s) {
   s.sndTick   = 11;   // tick
   s.tickSec   = 5;
   s.stepClick = 0;
+
+  // players + combo
+  s.playerMode = 0;
+  s.comboEvery = 0;
+  s.cP2        = 0x00AFFF;
 }
 
 static const char* const PRESET_NAMES[PRESET_COUNT] = {
@@ -285,11 +301,14 @@ const char* presetDesc(uint8_t id) { return id < PRESET_COUNT ? PRESET_DESCS[id]
 
 void settingsApplyPreset(uint8_t id) {
 
-  uint8_t keepLeds = cfg.ledCount;
+  // a preset changes the look and difficulty, not the ring or who is playing
+  uint8_t keepLeds    = cfg.ledCount;
+  uint8_t keepPlayers = cfg.playerMode;
 
   settingsDefaults(cfg);
 
-  cfg.ledCount = keepLeds;
+  cfg.ledCount   = keepLeds;
+  cfg.playerMode = keepPlayers;
 
   switch (id) {
 
@@ -360,14 +379,71 @@ static bool valid(const Settings& s) {
          s.size == sizeof(Settings);
 }
 
+// Layout 3 (v2.0) is layout 4 without the fields from playerMode on. Its
+// blocks were sizeof(old Settings) apart, so read all four (settings + 3
+// slots) at the old spacing, fill the new fields with defaults and rewrite
+// them at the new spacing. Returns false if there is nothing to migrate.
+static bool migrateLayout3() {
+
+  Settings head;
+
+  EEPROM.get(CFG_ADDR, head);
+
+  const size_t oldBytes = offsetof(Settings, playerMode);
+
+  if (head.magic != SETTINGS_MAGIC || head.layout != 3 ||
+      head.size < oldBytes || head.size >= sizeof(Settings))
+    return false;
+
+  Settings blocks[SLOT_COUNT + 1];
+
+  for (int b = 0; b <= SLOT_COUNT; b++) {
+
+    Settings& s = blocks[b];
+
+    settingsDefaults(s);
+
+    uint8_t* raw = (uint8_t*)&s;
+
+    for (size_t i = 0; i < oldBytes; i++)
+      raw[i] = EEPROM.read(CFG_ADDR + b * head.size + i);
+
+    bool used = s.magic == SETTINGS_MAGIC && s.layout == 3;
+
+    s.layout = SETTINGS_LAYOUT;
+    s.size   = sizeof(Settings);
+
+    if (!used)
+      s.magic = 0;             // empty slot stays empty
+  }
+
+  for (int b = 0; b <= SLOT_COUNT; b++)
+    EEPROM.put(CFG_ADDR + b * sizeof(Settings), blocks[b]);
+
+  EEPROM.commit();
+
+  Serial.println("Settings migrated from v2.0");
+
+  return true;
+}
+
 static int slotAddr(uint8_t i) {
 
   return CFG_ADDR + (i + 1) * sizeof(Settings);
 }
 
+static void netLoad();
+static void lbLoad();
+
 void settingsBegin() {
 
   EEPROM.begin(EEPROM_SIZE);
+
+  migrateLayout3();
+
+  netLoad();
+
+  lbLoad();
 
   Settings tmp;
 
@@ -454,4 +530,109 @@ void highScoreSave(int value) {
   EEPROM.put(0, value);
 
   EEPROM.commit();
+}
+
+// ============================================================
+// WIFI / ADMIN BLOCK
+// ============================================================
+
+void netDefaults() {
+
+  memset(&net, 0, sizeof(net));
+
+  net.magic = NET_MAGIC;
+
+  strcpy(net.apPass, "12345678");
+  strcpy(net.host, "cyclone");
+}
+
+// force a terminating zero into every string, whatever flash held
+static void netTerminate() {
+
+  net.apPass[sizeof(net.apPass) - 1]     = 0;
+  net.adminPin[sizeof(net.adminPin) - 1] = 0;
+  net.staSsid[sizeof(net.staSsid) - 1]   = 0;
+  net.staPass[sizeof(net.staPass) - 1]   = 0;
+  net.host[sizeof(net.host) - 1]         = 0;
+}
+
+static void netLoad() {
+
+  EEPROM.get(NET_ADDR, net);
+
+  netTerminate();
+
+  if (net.magic != NET_MAGIC || strlen(net.apPass) < 8 || !net.host[0])
+    netDefaults();
+}
+
+void netSave() {
+
+  netTerminate();
+
+  EEPROM.put(NET_ADDR, net);
+
+  EEPROM.commit();
+}
+
+// ============================================================
+// LEADERBOARD
+// ============================================================
+
+void lbClear() {
+
+  memset(&lb, 0, sizeof(lb));
+
+  lb.magic = LB_MAGIC;
+}
+
+static void lbLoad() {
+
+  EEPROM.get(LB_ADDR, lb);
+
+  if (lb.magic != LB_MAGIC) {
+
+    lbClear();
+
+    return;
+  }
+
+  for (int i = 0; i < LB_COUNT; i++)
+    lb.e[i].name[3] = 0;
+}
+
+void lbSave() {
+
+  EEPROM.put(LB_ADDR, lb);
+
+  EEPROM.commit();
+}
+
+int lbQualifies(int score) {
+
+  if (score <= 0)
+    return -1;
+
+  for (int i = 0; i < LB_COUNT; i++)
+    if (score > lb.e[i].score)
+      return i;
+
+  return -1;
+}
+
+int lbInsert(const LbEntry& entry) {
+
+  int rank = lbQualifies(entry.score);
+
+  if (rank < 0)
+    return -1;
+
+  for (int i = LB_COUNT - 1; i > rank; i--)
+    lb.e[i] = lb.e[i - 1];
+
+  lb.e[rank] = entry;
+
+  lbSave();
+
+  return rank;
 }

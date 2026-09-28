@@ -58,6 +58,22 @@ nav button.on{background:linear-gradient(90deg,#1c6cff,#8a3dff);color:#fff;borde
 .pc small{display:block;color:var(--dim);margin-top:2px}
 #toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%) translateY(80px);background:#0e1330;border:1px solid var(--cy);color:var(--txt);padding:10px 18px;border-radius:99px;transition:.3s;z-index:20;font-size:14px}
 #toast.show{transform:translateX(-50%) translateY(0)}
+.chip.combo{color:#1a1200;background:var(--yl);border-color:var(--yl);margin-left:6px;display:none}
+.lb{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
+.lb td,.lb th{padding:8px 6px;border-bottom:1px solid #1c2350;text-align:left;font-size:14px}
+.lb th{font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:1px;font-weight:600}
+.lb td:first-child{color:var(--cy);font-weight:800;width:34px}
+.lb tr.me td{background:#1c6cff22}
+.fld{display:grid;gap:4px;padding:7px 0}
+.fld label{font-size:13px;color:var(--dim)}
+.fld input{font:inherit;background:var(--card2);color:var(--txt);border:1px solid var(--line);border-radius:9px;padding:9px}
+.prog{height:8px;background:var(--card2);border-radius:9px;overflow:hidden;margin:8px 0;display:none}
+.prog i{display:block;height:100%;width:0;background:var(--gr)}
+code{font-size:12px;color:var(--cy)}
+#modal{position:fixed;inset:0;background:#000a;display:none;align-items:center;justify-content:center;z-index:30;padding:16px}
+#modal.show{display:flex}
+#modal .card{max-width:340px;width:100%;text-align:center}
+#modal input{font:800 34px/1 system-ui;width:150px;text-align:center;letter-spacing:10px;text-transform:uppercase;background:var(--card2);color:var(--txt);border:1px solid var(--line);border-radius:12px;padding:10px;margin:10px 0}
 footer{text-align:center;color:var(--dim);font-size:12px;margin-top:22px}
 footer a{color:var(--cy);text-decoration:none}
 </style>
@@ -71,12 +87,12 @@ footer a{color:var(--cy);text-decoration:none}
 <div class="card hero">
   <canvas id="ring" width="380" height="380"></canvas>
   <div class="stats">
-    <div><span class="chip" id="mode">idle</span></div>
+    <div><span class="chip" id="mode">idle</span><span class="chip combo" id="combo"></span></div>
     <div class="big" id="time">--</div>
     <div class="bar"><i id="tbar"></i></div>
     <div class="grid3">
-      <div class="kv"><b id="score">0</b><span>Score</span></div>
-      <div class="kv"><b id="best">0</b><span>Best</span></div>
+      <div class="kv"><b id="score">0</b><span id="l1">Score</span></div>
+      <div class="kv"><b id="best">0</b><span id="l2">Best</span></div>
       <div class="kv"><b id="level">1</b><span>Level</span></div>
     </div>
     <div class="btns">
@@ -93,10 +109,16 @@ footer a{color:var(--cy);text-decoration:none}
 <footer>Made by <a href="https://github.com/Am4l-babu" target="_blank">Am4l-babu</a> &middot; Cyclone Target Lock v2</footer>
 </div>
 <div id="toast"></div>
+<div id="modal"><div class="card">
+  <div class="h" style="justify-content:center">New high score!</div>
+  <div id="mTxt" class="note"></div>
+  <input id="mName" maxlength="3" autocomplete="off" placeholder="AAA">
+  <div class="btns"><button class="go" id="mSave">Save</button><button class="ghost" id="mSkip">Skip</button></div>
+</div></div>
 
 <script>
 const $=s=>document.querySelector(s);
-let S={},L={},M={},slots=[],dirty={},timer,ip='';
+let S={},L={},M={},N={},slots=[],dirty={},timer,ip='',sv=-1,lbv=-1,SC=null,skipPending=-1,ws=null,pollT=null;
 
 // ---------- UI schema: [type,key,label,unit,extra] ----------
 const TABS={
@@ -118,7 +140,11 @@ Game:[
 ['h','Ring'],
 ['range','ledCount','Number of LEDs',''],
 ['range','brightness','Brightness',''],
-['select','dirMode','Direction','','dir']],
+['select','dirMode','Direction','','dir'],
+['h','Players'],
+['select','playerMode','Mode','','players'],
+['note','Duel: a second button on D3 plays against the first on the same cursor. Turns: two players share one button, one round each.'],
+['range','comboEvery','Combo: multiplier +1 every N hits in a row (0 = off, max x4)','']],
 Look:[
 ['h','Running cursor'],
 ['color','cCursor','Cursor colour'],
@@ -126,6 +152,7 @@ Look:[
 ['color','cBg','Background colour'],
 ['range','tailLen','Comet tail length','LEDs'],
 ['toggle','targetPulse','Pulsing target'],
+['color','cP2','Player 2 hit colour (duel)'],
 ['h','Start sweep'],
 ['color','cStart','Sweep colour'],
 ['range','startSweep','Sweep speed (0 = none)','ms/LED'],
@@ -169,6 +196,7 @@ Sound:[
 ['snd','sndTick','Tick sound'],
 ['range','tickSec','Tick during last N seconds (0 = off)','s'],
 ['toggle','stepClick','Click on every cursor step']],
+Scores:[['scores']],
 Presets:[['presets']],
 System:[['system']]
 };
@@ -176,9 +204,18 @@ System:[['system']]
 // ---------- helpers ----------
 function toast(t){const e=$('#toast');e.textContent=t;e.classList.add('show');clearTimeout(toast.t);toast.t=setTimeout(()=>e.classList.remove('show'),1800)}
 function conn(ok){$('#conn').className='dot'+(ok?' ok':'');$('#connTxt').textContent=ok?'connected':'offline'}
-async function api(p,o){try{const r=await fetch(p,o);const j=await r.json();conn(true);if(!r.ok)throw j;return j}catch(e){if(e&&e.error){toast(e.error)}else conn(false);throw e}}
+async function api(p,o){try{const r=await fetch(p,o);const j=await r.json();conn(true);if(!r.ok)throw j;return j}catch(e){if(e&&e.error){if(e.error!=='pin')toast(e.error)}else conn(false);throw e}}
+// admin calls: add the PIN, ask for it if the device wants one
+function getPin(){try{return sessionStorage.getItem('pin')||''}catch(e){return ''}}
+function putPin(v){try{v?sessionStorage.setItem('pin',v):sessionStorage.removeItem('pin')}catch(e){}}
+async function admin(path,body){
+ for(let tries=0;tries<3;tries++){
+  const b=new URLSearchParams(body||{});b.set('pin',getPin());
+  try{return await api(path,{method:'POST',body:b})}
+  catch(e){if(!e||e.error!=='pin')throw e;const v=prompt(tries?'Wrong PIN. Admin PIN:':'Admin PIN:');if(v===null)throw e;putPin(v.trim())}}
+ toast('Wrong PIN');throw {error:'pin'}}
 function set(k,v){S[k]=v;dirty[k]=v;$('#saved').textContent='saving…';clearTimeout(timer);timer=setTimeout(flush,250)}
-async function flush(){const b=new URLSearchParams(dirty);dirty={};try{await api('/api/set',{method:'POST',body:b})}catch(e){}}
+async function flush(){if(!Object.keys(dirty).length)return;const b=new URLSearchParams(dirty);dirty={};try{const j=await api('/api/set',{method:'POST',body:b});if(j.sv!==undefined)sv=j.sv}catch(e){}}
 async function act(a){try{const j=await api('/api/'+a);draw(j)}catch(e){}}
 async function test(kind){await flush();try{await api('/api/test?fx='+kind)}catch(e){}}
 async function snd(id){try{await api('/api/test?sound='+id)}catch(e){}}
@@ -219,10 +256,73 @@ function system(box){
  const w=mk('div','btns');w.appendChild(b1);w.appendChild(b2);w.appendChild(f);box.appendChild(w);
  box.appendChild(mk('div','h','Danger zone'));
  const d=mk('div','btns');
- const rh=mk('button','no sm','Reset high score');rh.onclick=async()=>{if(confirm('Reset the high score?')){await api('/api/resethigh');toast('High score reset')}};
- const fr=mk('button','no sm','Factory reset');fr.onclick=async()=>{if(confirm('Restore ALL settings to defaults?')){await api('/api/factory');await load();toast('Defaults restored')}};
- const rb=mk('button','ghost sm','Reboot');rb.onclick=async()=>{if(confirm('Reboot the device?')){try{await api('/api/reboot')}catch(e){}toast('Rebooting…')}};
- d.appendChild(rh);d.appendChild(fr);d.appendChild(rb);box.appendChild(d)}
+ const rh=mk('button','no sm','Reset scores');rh.onclick=async()=>{if(confirm('Reset the high score and the leaderboard?')){try{await admin('/api/resethigh');toast('Scores reset')}catch(e){}}};
+ const fr=mk('button','no sm','Factory reset');fr.onclick=async()=>{if(confirm('Restore ALL game settings to defaults? (WiFi and PIN are kept)')){try{await admin('/api/factory');await load();toast('Defaults restored')}catch(e){}}};
+ const rb=mk('button','ghost sm','Reboot');rb.onclick=async()=>{if(confirm('Reboot the device?')){try{await admin('/api/reboot');toast('Rebooting…')}catch(e){}}};
+ d.appendChild(rh);d.appendChild(fr);d.appendChild(rb);box.appendChild(d);
+ netBox(box)}
+
+function scores(box){
+ box.appendChild(mk('div','h','Leaderboard (solo + turns)'));
+ const t=mk('table','lb');t.id='lbT';box.appendChild(t);
+ box.appendChild(mk('div','h','Last round'));
+ box.appendChild(mk('div','note','<span id="lastR">No round played yet.</span>'))}
+function esc(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
+function renderScores(){
+ const t=$('#lbT');if(!t||!SC)return;
+ let h='<tr><th>#</th><th>Name</th><th>Score</th><th>Hit %</th><th>Streak</th></tr>';
+ if(!SC.lb.length)h+='<tr><td></td><td colspan="4" style="color:var(--dim)">No scores yet. Play a round!</td></tr>';
+ SC.lb.forEach((e,i)=>{h+='<tr'+(i===SC.pending?' class="me"':'')+'><td>'+(i+1)+'</td><td>'+esc(e.n)+'</td><td><b>'+e.s+'</b></td><td>'+e.a+'%</td><td>'+e.k+'</td></tr>'});
+ t.innerHTML=h;
+ const R=SC.last,el=$('#lastR');if(!R||!el)return;
+ const pl=p=>'score <b>'+p.score+'</b> &middot; '+p.hits+' hits / '+p.misses+' misses ('+p.acc+'%) &middot; best streak '+p.streak+
+  (p.misses?' &middot; misses: '+p.early+' early, '+p.late+' late'+(p.early>p.late*2?' <i>(wait a touch longer)</i>':p.late>p.early*2?' <i>(press a touch sooner)</i>':''):'');
+ if(R.players===0)el.innerHTML=pl(R.p[0]);
+ else if(R.players===2&&R.winner<0&&!R.p[1].hits&&!R.p[1].misses)el.innerHTML='Player 1: '+pl(R.p[0])+'<br>Player 2 is up next.';
+ else el.innerHTML=(R.winner<0?'<b>Draw</b>':'<b>Player '+(R.winner+1)+' wins</b>')+'<br>P1: '+pl(R.p[0])+'<br>P2: '+pl(R.p[1])}
+async function loadScores(){try{SC=await api('/api/scores');renderScores();askName()}catch(e){}}
+function askName(){
+ if(!SC||SC.pending<0||SC.pending===skipPending||$('#modal').classList.contains('show'))return;
+ $('#mTxt').textContent='Rank #'+(SC.pending+1)+' with '+SC.lb[SC.pending].s+' points. Enter your initials:';
+ const i=$('#mName');i.value='';$('#modal').classList.add('show');setTimeout(()=>i.focus(),50)}
+$('#mSave').onclick=async()=>{const v=$('#mName').value.trim();if(!v){toast('Type 1 to 3 letters');return}
+ try{SC=await api('/api/name?n='+encodeURIComponent(v));closeName();toast('Saved!')}catch(e){closeName()}};
+function closeName(){$('#modal').classList.remove('show');$('#mName').blur();renderScores()}
+$('#mSkip').onclick=()=>{skipPending=SC?SC.pending:-1;closeName()};
+$('#mName').addEventListener('keydown',e=>{if(e.key==='Enter')$('#mSave').click()});
+function netBox(box){
+ box.appendChild(mk('div','h','WiFi &amp; security'));
+ const st=N.staOk?'connected, IP <b>'+N.staIp+'</b>':N.staGaveUp?'not found, check the name and password (reboot to retry)':(N.sta?'connecting…':'off');
+ box.appendChild(mk('div','note','Hotspot <b>'+esc(N.ap||'')+'</b> ('+(N.apIp||'')+')<br>Home WiFi: '+(N.sta?esc(N.sta)+', ':'')+st+'<br>Address: <b>http://'+esc(N.host||'')+'.local</b><br>Admin PIN: '+(N.pin?'<b>on</b>':'off (anyone on the WiFi can reset or reboot)')+'<br>Firmware built: '+esc(N.fw||'')));
+ const f=(id,l,t,ph,v)=>{const d=mk('div','fld');d.appendChild(mk('label','',l));const i=mk('input');i.id=id;i.type=t;i.placeholder=ph||'';if(v!==undefined)i.value=v;i.autocomplete='off';d.appendChild(i);box.appendChild(d)};
+ f('nAp','Hotspot password (8 to 32 characters)','password','leave empty to keep');
+ f('nSsid','Home WiFi name (empty = hotspot only)','text','',N.sta||'');
+ f('nPass','Home WiFi password','password','leave empty to keep');
+ f('nHost','Device name (http://name.local)','text','',N.host||'');
+ f('nPin','New admin PIN (4 to 8 digits)','password','leave empty to keep');
+ const w=mk('div','btns');
+ const sv2=mk('button','go sm','Save and reboot');sv2.onclick=async()=>{
+  const b={staSsid:$('#nSsid').value.trim(),host:$('#nHost').value.trim().toLowerCase()};
+  if($('#nAp').value)b.apPass=$('#nAp').value;if($('#nPass').value)b.staPass=$('#nPass').value;if($('#nPin').value)b.newPin=$('#nPin').value.trim();
+  if(!confirm('Save and reboot the device? If you changed the hotspot password, rejoin with the new one.'))return;
+  try{await admin('/api/net',b);if(b.newPin)putPin(b.newPin);toast('Saved. Rebooting…');setTimeout(()=>location.reload(),9000)}catch(e){}};
+ const rp=mk('button','ghost sm','Remove PIN');rp.onclick=async()=>{if(!N.pin){toast('No PIN is set');return}if(!confirm('Remove the admin PIN and reboot?'))return;try{await admin('/api/net',{newPin:''});putPin('');toast('PIN removed. Rebooting…');setTimeout(()=>location.reload(),9000)}catch(e){}};
+ w.appendChild(sv2);w.appendChild(rp);box.appendChild(w);
+ box.appendChild(mk('div','note','Forgot the PIN? Hold the game button while powering on for 3 s: the PIN, hotspot password and home WiFi are cleared.'));
+ box.appendChild(mk('div','h','Firmware update'));
+ box.appendChild(mk('div','note','Build with PlatformIO (<code>.pio/build/game/firmware.bin</code>) or the Arduino IDE (<i>Sketch &rarr; Export Compiled Binary</i>) and upload the .bin here. Settings and scores are kept.'));
+ const fi=mk('input');fi.type='file';fi.accept='.bin';fi.style.display='none';
+ const pg=mk('div','prog');pg.appendChild(mk('i'));
+ const ub=mk('button','sm','Choose firmware .bin');ub.onclick=()=>fi.click();
+ fi.onchange=()=>{const file=fi.files[0];fi.value='';if(!file)return;if(!confirm('Upload '+file.name+' ('+Math.round(file.size/1024)+' KB)?'))return;
+  let pin='';if(N.pin){pin=getPin()||prompt('Admin PIN:')||'';putPin(pin)}
+  const x=new XMLHttpRequest();x.open('POST','/update');if(N.pin)x.setRequestHeader('Authorization','Basic '+btoa('admin:'+pin));
+  pg.style.display='block';pg.firstChild.style.width='0';x.upload.onprogress=e=>{if(e.lengthComputable)pg.firstChild.style.width=(100*e.loaded/e.total)+'%'};
+  x.onload=()=>{pg.style.display='none';if(x.status===200&&/success/i.test(x.responseText)){toast('Updated! Rebooting…');setTimeout(()=>location.reload(),12000)}else{toast(x.status===401?'Wrong PIN':'Update failed');if(x.status===401)putPin('')}};
+  x.onerror=()=>{toast('Upload failed');pg.style.display='none'};
+  const fd=new FormData();fd.append('firmware',file,file.name);x.send(fd)};
+ const w2=mk('div','btns');w2.appendChild(ub);w2.appendChild(fi);box.appendChild(w2);box.appendChild(pg);
+ box.appendChild(mk('div','note','Or from PlatformIO over WiFi: <code>pio run -e game -t upload --upload-port '+esc(N.host||'cyclone')+'.local</code>'+(N.pin?' plus <code>--upload-flags=--auth=YOURPIN</code>':'')))}
 
 let cur='Game';
 function build(){
@@ -230,24 +330,40 @@ function build(){
  Object.keys(TABS).forEach(n=>{
   const b=mk('button',n===cur?'on':'',n);b.onclick=()=>{cur=n;build()};nav.appendChild(b);
   const c=mk('div','card tab'+(n===cur?' on':''));
-  TABS[n].forEach(sp=>{if(sp[0]==='presets')presets(c);else if(sp[0]==='system')system(c);else c.appendChild(control(sp))});
+  TABS[n].forEach(sp=>{if(sp[0]==='presets')presets(c);else if(sp[0]==='system')system(c);else if(sp[0]==='scores')scores(c);else c.appendChild(control(sp))});
   tabs.appendChild(c)});
- refresh()}
+ renderScores();refresh()}
 function refresh(){
  document.querySelectorAll('[data-k]').forEach(e=>{const v=S[e.dataset.k];if(v===undefined)return;if(e.type==='checkbox')e.checked=!!v;else e.value=v});
  document.querySelectorAll('[data-o]').forEach(o=>{const i=document.querySelector('input[data-k="'+o.dataset.o+'"]');if(!i)return;const u=(TABS.Game.concat(TABS.Look,TABS.Effects,TABS.Sound).find(s=>s[1]===o.dataset.o)||[])[3];o.textContent=i.value+(u?' '+u:'')});
  pv()}
-async function load(){const d=await api('/api/settings');S=d.v;L=d.limits;M=d.meta;slots=d.slots;ip=d.ip;build()}
+async function load(){const d=await api('/api/settings');S=d.v;L=d.limits;M=d.meta;slots=d.slots;N=d.net||{};ip=N.apIp||'';sv=d.sv;build()}
+// another phone changed something: pull the new values without rebuilding the page
+async function resync(){if(Object.keys(dirty).length)return;try{const d=await api('/api/settings');S=d.v;N=d.net||{};sv=d.sv;
+ const sl=JSON.stringify(slots)!==JSON.stringify(d.slots);slots=d.slots;if(sl&&cur==='Presets')build();else refresh()}catch(e){}}
 
 // ---------- live status ----------
 function fmt(s){return s>=100?Math.floor(s/60)+':'+String(s%60).padStart(2,'0'):s+'s'}
 function draw(j){
  const m=$('#mode');m.textContent=j.mode;m.className='chip '+j.mode;
- $('#time').textContent=fmt(j.timeLeft);$('#score').textContent=j.score;$('#best').textContent=j.best;$('#level').textContent=j.level;
+ $('#time').textContent=fmt(j.timeLeft);$('#level').textContent=j.level;
+ const duel=j.players===1,turns=j.players===2;
+ if(duel){$('#l1').textContent='Player 1';$('#score').textContent=j.p[0];$('#l2').textContent='Player 2';$('#best').textContent=j.p[1]}
+ else{$('#l1').textContent=turns?'P'+(j.turn+1)+' score':'Score';$('#score').textContent=j.score;$('#l2').textContent='Best';$('#best').textContent=j.best}
+ const mu=duel?Math.max(j.mult[0],j.mult[1]):j.mult[turns?j.turn:0],c=$('#combo');c.style.display=mu>1&&(j.mode==='playing'||j.mode==='fx')?'inline-block':'none';c.textContent='x'+mu+' combo';
+ if(sv>=0&&j.sv!==sv){sv=j.sv;resync()}
+ if(j.lbv!==lbv){lbv=j.lbv;loadScores()}
  $('#tbar').style.width=Math.min(100,100*j.timeLeft/Math.max(1,j.round))+'%';
  $('#saved').textContent=j.saved?'settings saved ✓':'saving…';
  const i=$('#info');if(i)i.innerHTML='IP: '+ip+'<br>Clients: '+j.clients+'<br>Free heap: '+j.heap+' B<br>Uptime: '+fmt(j.up)}
 async function poll(){try{draw(await api('/api/state'))}catch(e){}}
+// live updates: WebSocket on port 81, polling while it is down
+function live(){
+ if(!pollT)pollT=setInterval(poll,700);
+ try{ws=new WebSocket('ws://'+location.hostname+':81/')}catch(e){setTimeout(live,3000);return}
+ ws.onopen=()=>{clearInterval(pollT);pollT=null;conn(true)};
+ ws.onmessage=e=>{try{draw(JSON.parse(e.data))}catch(x){}};
+ ws.onclose=()=>{ws=null;conn(false);if(!pollT)pollT=setInterval(poll,700);setTimeout(live,3000)}}
 
 // ---------- ring preview (simulated with your current settings) ----------
 const cv=$('#ring'),g=cv.getContext('2d');let pos=0,tgt=7,acc=0,last=performance.now(),pvDirty=true;
@@ -269,7 +385,7 @@ function frame(t){
  requestAnimationFrame(frame)}
 
 $('#nav').addEventListener('wheel',e=>{e.currentTarget.scrollLeft+=e.deltaY});
-load().then(()=>{poll();setInterval(poll,700);requestAnimationFrame(frame)}).catch(()=>{setTimeout(()=>location.reload(),2500)});
+load().then(()=>{poll();live();requestAnimationFrame(frame)}).catch(()=>{setTimeout(()=>location.reload(),2500)});
 </script>
 </body>
 </html>

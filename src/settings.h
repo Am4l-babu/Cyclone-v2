@@ -8,7 +8,10 @@
 #define SLOT_COUNT       3
 
 #define SETTINGS_MAGIC   0xC7C1
-#define SETTINGS_LAYOUT  3
+#define SETTINGS_LAYOUT  4            // 3 = v2.0 (no player / combo fields), migrated on boot
+
+#define PLAYER_MODES     3
+#define LB_COUNT         5            // leaderboard entries
 
 // Everything the web page can change. Colours are 0xRRGGBB.
 struct Settings {
@@ -68,6 +71,11 @@ struct Settings {
   uint8_t  sndTick;
   uint8_t  tickSec;          // tick during the last N seconds, 0 = off
   uint8_t  stepClick;        // tiny click on every cursor step
+
+  // ---- players + combo (added in layout 4, keep new fields at the end) ----
+  uint8_t  playerMode;       // 0 solo, 1 duel (two buttons), 2 turns (one button)
+  uint8_t  comboEvery;       // score multiplier +1 every N hits in a row, 0 = off
+  uint32_t cP2;              // player 2 colour (duel hits)
 };
 
 // Describes one numeric/colour field so the web API can read and write it by name.
@@ -80,8 +88,37 @@ struct Field {
   bool        isColor;
 };
 
+// WiFi / admin settings. Kept apart from Settings so presets, slots and
+// export files never carry passwords.
+struct NetConfig {
+  uint16_t magic;
+  char     apPass[33];       // 8..32 chars
+  char     adminPin[9];      // "" = no PIN, otherwise 4..8 digits
+  char     staSsid[33];      // "" = access point only
+  char     staPass[65];
+  char     host[25];         // mDNS name -> http://<host>.local
+};
+
+struct LbEntry {
+  char     name[4];          // up to 3 letters
+  uint16_t score;
+  uint8_t  accuracy;         // % of presses that hit
+  uint8_t  streak;           // best run of hits in a row
+};
+
+struct Leaderboard {
+  uint16_t magic;
+  LbEntry  e[LB_COUNT];
+};
+
 #define CFG_ADDR    16
-#define EEPROM_SIZE (CFG_ADDR + (SLOT_COUNT + 1) * sizeof(Settings))
+#define NET_ADDR    1024
+#define LB_ADDR     1280
+#define EEPROM_SIZE 1536
+
+static_assert(CFG_ADDR + (SLOT_COUNT + 1) * sizeof(Settings) <= NET_ADDR, "settings overlap the WiFi block");
+static_assert(NET_ADDR + sizeof(NetConfig) <= LB_ADDR, "WiFi block overlaps the leaderboard");
+static_assert(LB_ADDR + sizeof(Leaderboard) <= EEPROM_SIZE, "leaderboard does not fit");
 
 extern Settings cfg;
 
@@ -89,7 +126,7 @@ void settingsBegin();                       // EEPROM.begin + load (or defaults)
 void settingsDefaults(Settings& s);
 void settingsClamp();
 void settingsSave();
-void settingsApplyPreset(uint8_t id);       // keeps ledCount
+void settingsApplyPreset(uint8_t id);       // keeps ledCount + playerMode
 const char* presetName(uint8_t id);
 const char* presetDesc(uint8_t id);
 
@@ -103,3 +140,14 @@ bool slotLoad(uint8_t i);
 
 int  highScoreLoad();
 void highScoreSave(int value);
+
+extern NetConfig   net;
+extern Leaderboard lb;
+
+void netDefaults();
+void netSave();
+
+void lbClear();
+void lbSave();
+int  lbQualifies(int score);                // rank 0..LB_COUNT-1, or -1
+int  lbInsert(const LbEntry& entry);        // returns the rank, or -1
